@@ -4,9 +4,9 @@ plugins {
     id 'java'
 }
 
-group = 'com.jeswin'
+group = 'io'
 version = '0.0.1-SNAPSHOT'
-sourceCompatibility = '19'
+sourceCompatibility = '17'
 
 repositories {
     mavenCentral()
@@ -15,6 +15,12 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework:spring-websocket'
+    implementation 'org.springframework:spring-messaging'
+    implementation 'com.fasterxml.jackson.core:jackson-core'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'org.rocksdb:rocksdbjni:7.6.0'
+    implementation 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
