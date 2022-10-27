@@ -58,3 +58,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+.mvn
+mvnw
+mvnw.cmd
+*.pem
+target/

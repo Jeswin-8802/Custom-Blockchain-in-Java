@@ -14,18 +14,13 @@ import java.nio.file.Files;
 @Slf4j
 @Repository
 public class RocksDBRepositoryImpl implements KeyValueRepository<String, String> {
-
-
-    File dbDir;
-    RocksDB db;
-
     private final static String DB_NAME_BLOCKCHAIN = "Blockchain";
-
-    private final static String DB_NAME_TRAMSACTIONS = "Transactions";
-
-    private final static String DB_NAME_NODES = "Nodes";
-
-    private final static String LOCATION_TO_BE_STORED = "/tmp/rocks-db"; // give the right location in your system and set it as you like
+    private final static String DB_NAME_TRANSACTIONS = "Transactions";
+    private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool";
+    private final static String DB_NAME_NODES = "Nodes"; // Public IP Addresses ==> Hash(PublicKey)
+    private final static String DB_NAME_WALLETS = "Wallets"; // Wallet-Name ==> "PublicKey PrivateKey UTXO"
+    private final static String LOCATION_TO_BE_STORED = "C:\\REPO\\Github\\rock-db"; // give the right location in your system and set it as you like
+    RocksDB dbBlockchain, dbTransactions, dbTransactionsPool, dbNodes, dbWallets;
     // DB will be stored under: /LOCATION_TO_BE_STORED/DB_NAME
 
     @PostConstruct
@@ -34,59 +29,102 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
         final Options options = new Options();
         options.setCreateIfMissing(true);
 
-        File blockchainDbDir = new File(LOCATION_TO_BE_STORED, DB_NAME_BLOCKCHAIN);
-        try {
-            Files.createDirectories(blockchainDbDir.getParentFile().toPath());
-            Files.createDirectories(blockchainDbDir.getAbsoluteFile().toPath());
-            db = RocksDB.open(options, blockchainDbDir.getAbsolutePath());
-        } catch (IOException | RocksDBException ex) {
-            log.error("Error initializng RocksDB for storing Blockchain, check configurations and permissions, exception: {}, message: {}, stackTrace: {}",
-                    ex.getCause(), ex.getMessage(), ex.getStackTrace());
-        }
-        log.info("RocksDB for storing Blockchain initialized and ready to use");
+        createDB(options, DB_NAME_BLOCKCHAIN, "Blockchain");
 
-        File transactionsDbDir = new File(LOCATION_TO_BE_STORED, DB_NAME_TRAMSACTIONS);
-        try {
-            Files.createDirectories(transactionsDbDir.getParentFile().toPath());
-            Files.createDirectories(transactionsDbDir.getAbsoluteFile().toPath());
-            db = RocksDB.open(options, transactionsDbDir.getAbsolutePath());
-        } catch (IOException | RocksDBException ex) {
-            log.error("Error initializng RocksDB for storing Transactions, check configurations and permissions, exception: {}, message: {}, stackTrace: {}",
-                    ex.getCause(), ex.getMessage(), ex.getStackTrace());
-        }
-        log.info("RocksDB for storing Transactions initialized and ready to use");
+        createDB(options, DB_NAME_TRANSACTIONS, "Transactions");
 
+        createDB(options, DB_NAME_TRANSACTIONS_POOL, "Transactions Pool");
 
-        File nodesDbDir = new File(LOCATION_TO_BE_STORED, DB_NAME_NODES);
+        createDB(options, DB_NAME_NODES, "Node Information");
+
+        createDB(options, DB_NAME_WALLETS, "Wallet Information");
+    }
+
+    private void createDB(Options options, String dbName, String msg) {
+        File dbDir = new File(LOCATION_TO_BE_STORED, dbName);
         try {
-            Files.createDirectories(nodesDbDir.getParentFile().toPath());
-            Files.createDirectories(nodesDbDir.getAbsoluteFile().toPath());
-            db = RocksDB.open(options, nodesDbDir.getAbsolutePath());
+            Files.createDirectories(dbDir.getParentFile().toPath());
+            Files.createDirectories(dbDir.getAbsoluteFile().toPath());
+            RocksDB db = RocksDB.open(options, dbDir.getAbsolutePath());
+            switch (dbName) {
+                case DB_NAME_BLOCKCHAIN:
+                    dbBlockchain = db;
+                    break;
+                case DB_NAME_TRANSACTIONS:
+                    dbTransactions = db;
+                    break;
+                case DB_NAME_TRANSACTIONS_POOL:
+                    dbTransactionsPool = db;
+                    break;
+                case DB_NAME_NODES:
+                    dbNodes = db;
+                    break;
+                case DB_NAME_WALLETS:
+                    dbWallets = db;
+                    break;
+            }
         } catch (IOException | RocksDBException ex) {
-            log.error("Error initializng RocksDB for storing Node Information, check configurations and permissions, exception: {}, message: {}, stackTrace: {}",
-                    ex.getCause(), ex.getMessage(), ex.getStackTrace());
+            log.error("Error initializing RocksDB for storing {}, check configurations and permissions, exception: {}, message: {}, stackTrace: {}",
+                    msg, ex.getCause(), ex.getMessage(), ex.getStackTrace());
         }
-        log.info("RocksDB for storing Node Information initialized and ready to use");
+        log.info("RocksDB for storing {} initialized and ready to use", msg);
     }
 
 
     @Override
-    public void save(String key, String value) {
+    public void save(String key, String value, String db) {
         log.info("----SAVE----");
         try {
-            db.put(key.getBytes(), value.getBytes());
+            switch (db) {
+                case "Blockchain":
+                    dbBlockchain.put(key.getBytes(), value.getBytes());
+                    break;
+                case "Transactions":
+                    dbTransactions.put(key.getBytes(), value.getBytes());
+                    break;
+                case "Transactions-Pool":
+                    dbTransactionsPool.put(key.getBytes(), value.getBytes());
+                    break;
+                case "Nodes":
+                    dbNodes.put(key.getBytes(), value.getBytes());
+                    break;
+                case "Wallets":
+                    dbWallets.put(key.getBytes(), value.getBytes());
+                    break;
+                default:
+                    log.error("Please enter valid DB name");
+            }
         } catch (RocksDBException e) {
             log.error("Error saving entry in RocksDB, cause: {}, message: {}", e.getCause(), e.getMessage());
         }
     }
 
     @Override
-    public String find(String key) {
+    public String find(String key, String db) {
         log.info("----FIND----");
         String result = null;
         try {
-            byte[] bytes = db.get(key.getBytes());
-            if(bytes == null) return null;
+            byte[] bytes = null;
+            switch (db) {
+                case "Blockchain":
+                    bytes = dbBlockchain.get(key.getBytes());
+                    break;
+                case "Transactions":
+                    bytes = dbTransactions.get(key.getBytes());
+                    break;
+                case "Transactions-Pool":
+                    bytes = dbTransactionsPool.get(key.getBytes());
+                    break;
+                case "Nodes":
+                    bytes = dbNodes.get(key.getBytes());
+                    break;
+                case "Wallets":
+                    bytes = dbWallets.get(key.getBytes());
+                    break;
+                default:
+                    log.error("Please enter valid DB name");
+            }
+            if (bytes == null) return null;
             result = new String(bytes);
         } catch (RocksDBException e) {
             log.error("Error retrieving the entry in RocksDB from key: {}, cause: {}, message: {}", key, e.getCause(), e.getMessage());
@@ -95,10 +133,28 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     }
 
     @Override
-    public void delete(String key) {
+    public void delete(String key, String db) {
         log.info("----DELETE----");
         try {
-            db.delete(key.getBytes());
+            switch (db) {
+                case "Blockchain":
+                    dbBlockchain.delete(key.getBytes());
+                    break;
+                case "Transactions":
+                    dbTransactions.delete(key.getBytes());
+                    break;
+                case "Transactions-Pool":
+                    dbTransactionsPool.delete(key.getBytes());
+                    break;
+                case "Nodes":
+                    dbNodes.delete(key.getBytes());
+                    break;
+                case "Wallets":
+                    dbWallets.delete(key.getBytes());
+                    break;
+                default:
+                    log.error("Please enter valid DB name");
+            }
         } catch (RocksDBException e) {
             log.error("Error deleting entry in RocksDB, cause: {}, message: {}", e.getCause(), e.getMessage());
         }
