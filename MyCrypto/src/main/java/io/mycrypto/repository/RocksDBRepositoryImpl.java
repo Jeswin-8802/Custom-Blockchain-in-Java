@@ -133,30 +133,23 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     }
 
     @Override
-    public void delete(String key, String db) {
+    public boolean delete(String key, String db) {
         log.info("----DELETE----");
         try {
             switch (db) {
-                case "Blockchain":
-                    dbBlockchain.delete(key.getBytes());
-                    break;
-                case "Transactions":
-                    dbTransactions.delete(key.getBytes());
-                    break;
-                case "Transactions-Pool":
-                    dbTransactionsPool.delete(key.getBytes());
-                    break;
-                case "Nodes":
-                    dbNodes.delete(key.getBytes());
-                    break;
-                case "Wallets":
-                    dbWallets.delete(key.getBytes());
-                    break;
-                default:
+                case "Blockchain" -> dbBlockchain.delete(key.getBytes());
+                case "Transactions" -> dbTransactions.delete(key.getBytes());
+                case "Transactions-Pool" -> dbTransactionsPool.delete(key.getBytes());
+                case "Nodes" -> dbNodes.delete(key.getBytes());
+                case "Wallets" -> dbWallets.delete(key.getBytes());
+                default -> {
                     log.error("Please enter valid DB name");
+                    return false;
+                }
             }
         } catch (RocksDBException e) {
             log.error("Error deleting entry in RocksDB, cause: {}, message: {}", e.getCause(), e.getMessage());
         }
+        return true;
     }
 }

@@ -7,5 +7,5 @@ public interface KeyValueRepository<K, V> {
     V find(K key, String db);
 
     //to be used only when orphan blocks are detected (will only be applicable locally)
-    void delete(K key, String db);
+    boolean delete(K key, String db);
 }

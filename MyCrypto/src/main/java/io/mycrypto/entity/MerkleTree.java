@@ -10,7 +10,7 @@ public class MerkleTree {
     @Autowired
     KeyValueRepository<String, String> rocksDb;
 
-    private final static long TRANSACTION_POOL_SIZE_LIMIT = 5; // ~ 5 KB
+    private final static long TRANSACTION_POOL_SIZE_LIMIT = 5; // num of transactions
 
     String merkleRoot; // hash
     Node parent;
