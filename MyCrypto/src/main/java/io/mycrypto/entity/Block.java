@@ -1,26 +1,20 @@
 package io.mycrypto.entity;
 
 import io.mycrypto.repository.KeyValueRepository;
-import io.mycrypto.repository.RocksDBRepositoryImpl;
 import io.mycrypto.util.Utility;
 import lombok.Data;
 import lombok.ToString;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
+import java.util.Date;
 import java.util.List;
 
 
+@Slf4j
 @Data
 @ToString
 public class Block {
-
-    private static final Logger log = LogManager.getLogger(Block.class);
-
-    private static final long REWARD = 100; // 100 satoshi
-
-    private static final String DEFAULT_WALLET_NAME = "default";
 
     String hash; // Block Identifier
     String previousHash; // Represents hash of the previous block
@@ -34,28 +28,23 @@ public class Block {
 
 
     public String calculateHash() {
-        String calculated_hash = Utility.getHash(previousHash + height + timeStamp + tx.toString() + numTx + merkleRoot + getNonce() + difficulty);
+        String calculated_hash = Utility.getHashSHA256(previousHash + height + timeStamp + tx.toString() + numTx + merkleRoot + getNonce() + difficulty);
         if (this.hash == null) {
+            setNonce(0);
+            setDifficulty(3);
+            setTimeStamp(new Date().getTime());
             setHash(calculated_hash);
             return this.hash;
         }
         return calculated_hash;
     }
 
-    public void mineBlock(KeyValueRepository db) {
+    public void mineBlock() {
         String target = new String(new char[difficulty]).replace('\0', '0'); //Create a string with difficulty * "0"
         while(!hash.substring(0, difficulty).equals(target)) {
             nonce ++;
             hash = calculateHash();
         }
         log.info("Block Mined!!! : " + hash);
-
-        log.info("Crediting {} satoshis to your default wallet. Good Job!", REWARD);
-        String walletInfo = (String) db.find(DEFAULT_WALLET_NAME, "Wallets");
-        db.delete(DEFAULT_WALLET_NAME, "Wallets");
-        String info[] = walletInfo.split("- ");
-        info[2] = (new BigInteger(info[2]).add(new BigInteger(String.valueOf(REWARD)))).toString();
-        log.info("UTXO ==> {}", info[2]);
-        db.save(DEFAULT_WALLET_NAME, String.join("- ", info), "Wallets");
     }
 }

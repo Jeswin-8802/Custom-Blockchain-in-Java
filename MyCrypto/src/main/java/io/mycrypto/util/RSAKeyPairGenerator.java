@@ -1,8 +1,9 @@
 package io.mycrypto.util;
 
 import io.mycrypto.repository.KeyValueRepository;
-import io.mycrypto.repository.RocksDBRepositoryImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -12,7 +13,11 @@ import java.util.Base64;
 import java.util.Scanner;
 
 @Slf4j
+@Service
 public class RSAKeyPairGenerator {
+
+    @Autowired
+    KeyValueRepository<String, String> rocksDB;
 
     private static final String PUBLIC_KEY_NAME = "myPublicKey";
 
@@ -20,25 +25,20 @@ public class RSAKeyPairGenerator {
 
     private static final String LOCATION_TO_STORE_KEYS = "src/main/resources/";
 
-    private static final String STARTING_AMOUNT = "100";
-
-    public static void main(String[] args) {
-        new RSAKeyPairGenerator().generateKeyPairToFile(PUBLIC_KEY_NAME, PRIVATE_KEY_NAME, null);
-    }
+    private static final String STARTING_AMOUNT = "100"; // only the admin should have the permissions to circulate currency otherwise set to 0 (can be validated by checking UTXO by transaction order)
 
 
     // can store at specific location as well as store in the Wallets DB
-    public void generateKeyPairToFile(String publicKeyName, String privateKeyName, KeyValueRepository db) {
-        try (FileOutputStream pubKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + publicKeyName + ".pem");
-             FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + privateKeyName + ".pem")) {
+    public void generateKeyPairToFile(String walletName) {
+        try (FileOutputStream pubKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + PUBLIC_KEY_NAME + ".pem");
+             FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + PRIVATE_KEY_NAME + ".pem")) {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(2048);
-            KeyPair pair = generator.generateKeyPair();
+            generator.initialize(2048);            KeyPair pair = generator.generateKeyPair();
 
             PrivateKey privateKey = pair.getPrivate();
             PublicKey publicKey = pair.getPublic();
 
-            log.info("generating " + privateKeyName + ".pem...........\n");
+            log.info("generating " + PRIVATE_KEY_NAME + ".pem...........\n");
 
             String privateKeyString = "-----BEGIN PRIVATE KEY-----" +
                     "\n" +
@@ -46,9 +46,9 @@ public class RSAKeyPairGenerator {
                     "\n" +
                     "-----END PRIVATE KEY-----";
 
-            log.info(privateKeyName + ".pem ==> \n" + privateKeyString + "\n");
+            log.info(PRIVATE_KEY_NAME + ".pem ==> \n" + privateKeyString + "\n");
 
-            log.info("generating " + publicKeyName + ".pem...........\n");
+            log.info("generating " + PUBLIC_KEY_NAME + ".pem...........\n");
 
             String publicKeyString = "-----BEGIN PUBLIC KEY-----" +
                     "\n" +
@@ -56,16 +56,11 @@ public class RSAKeyPairGenerator {
                     "\n" +
                     "-----END PUBLIC KEY-----";
 
-            log.info(publicKeyName + ".pem ==> \n" + publicKeyString + "\n");
+            log.info(PUBLIC_KEY_NAME + ".pem ==> \n" + publicKeyString + "\n");
 
             String value = publicKeyString + " " + privateKeyString + " " + STARTING_AMOUNT;
 
-            Scanner sc = new Scanner(System.in);
-            System.out.print("\n\nPlease Enter the name of the new Wallet: ");
-            String name = sc.nextLine();
-            sc.close();
-
-            db.save(name, value, "Wallets");
+            rocksDB.save(walletName, value, "Wallets");
 
             priKey.write(privateKeyString.getBytes(StandardCharsets.UTF_8));
             pubKey.write(publicKeyString.getBytes(StandardCharsets.UTF_8));
