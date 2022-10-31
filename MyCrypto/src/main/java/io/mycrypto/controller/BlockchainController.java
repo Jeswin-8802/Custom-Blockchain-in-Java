@@ -1,8 +1,8 @@
 package io.mycrypto.controller;
 
 import io.mycrypto.dto.CreateWalletRequestDto;
+import io.mycrypto.dto.VerifyAddressRequestDto;
 import io.mycrypto.dto.WalletResponseDto;
-import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.service.BlockchainService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,12 +14,9 @@ import org.springframework.web.bind.annotation.*;
 public class BlockchainController {
 
     @Autowired
-    KeyValueRepository<String, String> rocksDB;
-
-    @Autowired
     BlockchainService service;
 
-    @PostMapping("createWallet")
+    @PostMapping("create-wallet")
     public ResponseEntity<WalletResponseDto> createNewWallet(@RequestBody CreateWalletRequestDto requestDto) {
         return service.createWallet(requestDto);
     }
@@ -39,13 +36,24 @@ public class BlockchainController {
         return ResponseEntity.ok(service.fetchBlockContent(key));
     }
 
-    @DeleteMapping("/{key}")
+    @DeleteMapping("{key}")
     public ResponseEntity<Object> delete(@RequestParam(name = "db") String db, @PathVariable("key") String key) {
         return service.delete(key, db);
     }
 
-    @GetMapping("/create-genesis-block")    // be careful with his API, must be used only once by the admin
+    @GetMapping("create-genesis-block")    // be careful with his API, must be used only once by the admin
     public ResponseEntity<Object> createGenesisBlock() {
         return service.createGenesisBlock();
+    }
+
+    @GetMapping("check-address-validity")
+    public ResponseEntity<Object> checkAddressValidity(@RequestBody VerifyAddressRequestDto request) {
+        return service.constructResponseForValidateAddress(request);
+    }
+
+    @GetMapping("make-transaction")
+    public ResponseEntity<String> maketransaction() {
+        service.makeTransaction();
+        return ResponseEntity.ok().build();
     }
 }

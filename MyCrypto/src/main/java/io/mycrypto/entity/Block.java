@@ -1,12 +1,10 @@
 package io.mycrypto.entity;
 
-import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.util.Utility;
 import lombok.Data;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
-import java.math.BigInteger;
 import java.util.Date;
 import java.util.List;
 
@@ -16,6 +14,7 @@ import java.util.List;
 @ToString
 public class Block {
 
+    String blockOwner; // The hash of the node that mined the block (This is noted down so that the rewards for mining are transferred to this hash)
     String hash; // Block Identifier
     String previousHash; // Represents hash of the previous block
     long height; // The current block height is simply the number of blocks in the blockchain minus one
@@ -39,12 +38,13 @@ public class Block {
         return calculated_hash;
     }
 
-    public void mineBlock() {
+    public void mineBlock(String hashOfMiner) {
         String target = new String(new char[difficulty]).replace('\0', '0'); //Create a string with difficulty * "0"
-        while(!hash.substring(0, difficulty).equals(target)) {
-            nonce ++;
+        while (!hash.substring(0, difficulty).equals(target)) {
+            nonce++;
             hash = calculateHash();
         }
         log.info("Block Mined!!! : " + hash);
+        setBlockOwner(hashOfMiner);
     }
 }

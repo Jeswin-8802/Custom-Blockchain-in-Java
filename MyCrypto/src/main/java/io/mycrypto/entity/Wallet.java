@@ -2,11 +2,11 @@ package io.mycrypto.entity;
 
 import lombok.Data;
 
-import java.math.BigInteger;
+import java.math.BigDecimal;
 
 @Data
 public class Wallet {
     String publicKey;
     String privateKey;
-    BigInteger UTXO; //  amount of digital currency remaining after a cryptocurrency transaction is executed (Unspent Transaction Output)
+    BigDecimal UTXO; //  amount of digital currency remaining after a cryptocurrency transaction is executed (Unspent Transaction Output)
 }

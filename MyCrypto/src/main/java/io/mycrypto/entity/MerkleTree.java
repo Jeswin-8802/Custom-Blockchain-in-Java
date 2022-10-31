@@ -7,19 +7,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class MerkleTree {
 
+    private final static long TRANSACTION_POOL_SIZE_LIMIT = 5; // num of transactions
     @Autowired
     KeyValueRepository<String, String> rocksDb;
-
-    private final static long TRANSACTION_POOL_SIZE_LIMIT = 5; // num of transactions
-
     String merkleRoot; // hash
     Node parent;
-    private class Node {
-        String hash;
-        Transaction tx;
-    }
 
     public MerkleTree() {
 
+    }
+
+    private class Node {
+        String hash;
+        Transaction tx;
     }
 }
