@@ -5,8 +5,8 @@ import lombok.Data;
 
 @Data
 public class VerifyAddressRequestDto {
-    @JsonProperty("bitcoin-address")
+    @JsonProperty("chicken-coin-address")
     String address;
-    @JsonProperty("public-key")
-    String publicKey;
+    @JsonProperty("hash160-of-public-key")
+    String hash160;
 }

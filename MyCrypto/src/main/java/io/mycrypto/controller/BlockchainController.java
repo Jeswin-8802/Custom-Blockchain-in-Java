@@ -31,9 +31,9 @@ public class BlockchainController {
         return service.fetchBlockPath(key);
     }
 
-    @GetMapping("blockcontent/{key}")
-    public ResponseEntity<Object> findBlockContent(@PathVariable("key") String key) {
-        return ResponseEntity.ok(service.fetchBlockContent(key));
+    @GetMapping("blockcontent")
+    public ResponseEntity<Object> findBlockContent(@RequestParam(name = "block-hash") String hash) {
+        return service.constructResponseForFetchBlockContent(hash);
     }
 
     @DeleteMapping("{key}")
@@ -46,7 +46,7 @@ public class BlockchainController {
         return service.createGenesisBlock();
     }
 
-    @GetMapping("check-address-validity")
+    @PostMapping("check-address-validity")
     public ResponseEntity<Object> checkAddressValidity(@RequestBody VerifyAddressRequestDto request) {
         return service.constructResponseForValidateAddress(request);
     }

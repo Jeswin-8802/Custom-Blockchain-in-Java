@@ -2,13 +2,11 @@ package io.mycrypto.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
-import lombok.ToString;
 
 import java.math.BigDecimal;
 
 @Data
-@ToString
-public class WalletResponseDto {
+public class WalletInfoDto {
     @JsonProperty("public-key")
     String publicKey;
 
@@ -18,9 +16,9 @@ public class WalletResponseDto {
     @JsonProperty("hash160")
     String hash160;
 
-    @JsonProperty("balance-in-chicken-coin")
-    BigDecimal balance;
-
     @JsonProperty("chicken-coin-address")
     String address;
+
+    @JsonProperty("balance-in-chicken-coin")
+    BigDecimal balance;
 }
