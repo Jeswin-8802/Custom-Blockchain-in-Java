@@ -182,7 +182,7 @@ public final class Utility {
         return null;
     }
 
-    public static String constructMerkelTree(List<String> transactionIds) {
+    public static String constructMerkleTree(List<String> transactionIds) {
         int size = transactionIds.size();
         if (size % 2 == 1) {
             transactionIds.add(transactionIds.get(size - 1));
