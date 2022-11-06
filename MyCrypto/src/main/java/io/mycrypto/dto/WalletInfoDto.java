@@ -16,9 +16,9 @@ public class WalletInfoDto {
     @JsonProperty("hash160")
     String hash160;
 
-    @JsonProperty("chicken-coin-address")
+    @JsonProperty("dodo-coin-address")
     String address;
 
-    @JsonProperty("balance-in-chicken-coin")
+    @JsonProperty("balance-in-dodo-coin")
     BigDecimal balance;
 }

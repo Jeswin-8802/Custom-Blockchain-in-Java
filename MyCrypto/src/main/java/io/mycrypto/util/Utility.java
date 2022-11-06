@@ -20,16 +20,14 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPoint;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 
 
 @Slf4j
 public final class Utility {
-
-    public static final char[] ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz".toCharArray();
     private static final String PUBLIC_KEY_NAME = "myPublicKey";
     private static final String PRIVATE_KEY_NAME = "myPrivateKey";
     private static final String LOCATION_TO_STORE_KEYS = "src/main/resources/";
-    private static final String STARTING_AMOUNT = "100"; // only the admin should have the permissions to circulate currency otherwise set to 0 (can be validated by checking UTXO by transaction order
 
     private static final byte EVEN = 0x02;
     private static final byte ODD = 0x03;
@@ -185,5 +183,26 @@ public final class Utility {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public static String constructMerkelTree(List<String> transactionIds) {
+        int size = transactionIds.size();
+        if (size % 2 == 1) {
+            transactionIds.add(transactionIds.get(size - 1));
+            size++;
+        }
+        while (size > 1) {
+            int pos = 0;
+            for (int i = 0; i < size; i += 2) {
+                transactionIds.set(pos, getHashSHA384(transactionIds.get(i) + transactionIds.get(i + 1)));
+                pos++;
+            }
+            if (size % 2 == 1) {
+                transactionIds.set(pos + 1, transactionIds.get(pos));
+                size++;
+            }
+            size /= 2;
+        }
+        return transactionIds.get(0);
     }
 }

@@ -3,18 +3,21 @@ package io.mycrypto.controller;
 import io.mycrypto.dto.CreateWalletRequestDto;
 import io.mycrypto.dto.VerifyAddressRequestDto;
 import io.mycrypto.dto.WalletResponseDto;
-import io.mycrypto.service.BlockchainService;
+import io.mycrypto.service.ResponseService;
 import lombok.extern.slf4j.Slf4j;
+import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.FileNotFoundException;
 
 @Slf4j
 @RestController
 public class BlockchainController {
 
     @Autowired
-    BlockchainService service;
+    ResponseService service;
 
     @PostMapping("create-wallet")
     public ResponseEntity<WalletResponseDto> createNewWallet(@RequestBody CreateWalletRequestDto requestDto) {
@@ -26,18 +29,28 @@ public class BlockchainController {
         return service.fetchWalletInfo(key);
     }
 
-    @GetMapping("blockpath/{key}")
-    public ResponseEntity<Object> findBlockPath(@PathVariable("key") String key) {
-        return service.fetchBlockPath(key);
+    @GetMapping("fetch-transaction")
+    public ResponseEntity<Object> fetchTransaction(@RequestParam(name = "id") String id) {
+        return service.constructResponseForFetchTransaction(id);
     }
 
-    @GetMapping("blockcontent")
+    @GetMapping("blockpath/{path}")
+    public ResponseEntity<Object> findBlockPath(@PathVariable("path") String path) {
+        return service.fetchBlockPath(path);
+    }
+
+    @GetMapping("fetch-block-content")
     public ResponseEntity<Object> findBlockContent(@RequestParam(name = "block-hash") String hash) {
         return service.constructResponseForFetchBlockContent(hash);
     }
 
-    @DeleteMapping("{key}")
-    public ResponseEntity<Object> delete(@RequestParam(name = "db") String db, @PathVariable("key") String key) {
+    @GetMapping("fetch-block-content-by-height/{height}")
+    public ResponseEntity<Object> fetchBlockContentByHeight(@PathVariable("height") String height) throws FileNotFoundException, ParseException {
+        return service.constructResponseForFetchBlockContentByHeight(height);
+    }
+
+    @DeleteMapping()
+    public ResponseEntity<Object> delete(@RequestParam(name = "db") String db, @RequestParam(name = "key") String key) {
         return service.delete(key, db);
     }
 

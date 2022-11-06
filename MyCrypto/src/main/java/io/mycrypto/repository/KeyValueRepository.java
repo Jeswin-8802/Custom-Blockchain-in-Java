@@ -9,4 +9,5 @@ public interface KeyValueRepository<K, V> {
     //to be used only when orphan blocks are detected (will only be applicable locally)
     boolean delete(K key, String db);
 
+    void getList();
 }
