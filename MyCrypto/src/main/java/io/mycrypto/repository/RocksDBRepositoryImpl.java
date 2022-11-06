@@ -1,24 +1,30 @@
 package io.mycrypto.repository;
 
 import lombok.extern.slf4j.Slf4j;
-import org.rocksdb.*;
+import org.rocksdb.Options;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Repository
 public class RocksDBRepositoryImpl implements KeyValueRepository<String, String> {
-    private final static String DB_NAME_BLOCKCHAIN = "Blockchain";
-    private final static String DB_NAME_TRANSACTIONS = "Transactions";
-    private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool";
+    private final static String DB_NAME_BLOCKCHAIN = "Blockchain"; // Block-Hash ==> block path
+    private final static String DB_NAME_TRANSACTIONS = "Transactions"; // Transaction-Hash ==> Transaction Data
+    private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool"; //   "            "
     private final static String DB_NAME_NODES = "Nodes"; // Wallet Address ==> IP Address
     private final static String DB_NAME_WALLETS = "Wallets"; // Wallet-Name ==> "PubKey PrvKey ..."
-    private final static String DB_NAME_ACCOUNT = "Account"; // Wallet Address ==> "TransactionId1,amount1 TransactionId2,amount2 ..."
-    private final static String LOCATION_TO_BE_STORED = "C:\\REPO\\Github\\rock-db"; // give the right location in your system and set it as you like
+    private final static String DB_NAME_ACCOUNT = "Accounts"; // Wallet Address ==> "TransactionId1,VOUT TransactionId2,VOUT ..."
+    private final static String LOCATION_TO_BE_STORED = "C:\\REPO\\Github\\rock-db"; // set the location as you like
 
     RocksDB dbBlockchain, dbTransactions, dbTransactionsPool, dbNodes, dbWallets, dbAccount;
     // DB will be stored under: /LOCATION_TO_BE_STORED/DB_NAME
@@ -128,12 +134,27 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     }
 
     @Override
-    public void getList() {
-        RocksIterator itr = dbBlockchain.newIterator();
+    public Map<String, String> getList(String db) {
+        Map<String, String> result = new HashMap<>();
+
+        RocksIterator itr = null;
+        switch (db) {
+            case DB_NAME_BLOCKCHAIN -> itr = dbBlockchain.newIterator();
+            case DB_NAME_TRANSACTIONS -> itr = dbTransactions.newIterator();
+            case DB_NAME_TRANSACTIONS_POOL -> itr = dbTransactionsPool.newIterator();
+            case DB_NAME_NODES -> itr = dbNodes.newIterator();
+            case DB_NAME_WALLETS -> itr = dbWallets.newIterator();
+            case DB_NAME_ACCOUNT -> itr = dbAccount.newIterator();
+            default -> log.error("Please enter valid DB name");
+        }
+
+        assert itr != null;
         itr.seekToFirst();
-        while(itr.isValid()) {
+        while (itr.isValid()) {
+            result.put(new String(itr.key()), new String(itr.value()));
             log.info("Key: {}, Value: {}", new String(itr.key()), new String(itr.value()));
             itr.next();
         }
+        return result;
     }
 }

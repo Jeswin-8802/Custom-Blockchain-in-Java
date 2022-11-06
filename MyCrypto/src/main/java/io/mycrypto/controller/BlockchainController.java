@@ -2,7 +2,6 @@ package io.mycrypto.controller;
 
 import io.mycrypto.dto.CreateWalletRequestDto;
 import io.mycrypto.dto.VerifyAddressRequestDto;
-import io.mycrypto.dto.WalletResponseDto;
 import io.mycrypto.service.ResponseService;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.parser.ParseException;
@@ -20,12 +19,12 @@ public class BlockchainController {
     ResponseService service;
 
     @PostMapping("create-wallet")
-    public ResponseEntity<WalletResponseDto> createNewWallet(@RequestBody CreateWalletRequestDto requestDto) {
+    public ResponseEntity<Object> createNewWallet(@RequestBody CreateWalletRequestDto requestDto) {
         return service.createWallet(requestDto);
     }
 
     @GetMapping("wallet/{key}")
-    public ResponseEntity<WalletResponseDto> findWallet(@PathVariable("key") String key) {
+    public ResponseEntity<Object> findWallet(@PathVariable("key") String key) {
         return service.fetchWalletInfo(key);
     }
 
@@ -34,22 +33,17 @@ public class BlockchainController {
         return service.constructResponseForFetchTransaction(id);
     }
 
-    @GetMapping("blockpath/{path}")
-    public ResponseEntity<Object> findBlockPath(@PathVariable("path") String path) {
-        return service.fetchBlockPath(path);
-    }
-
     @GetMapping("fetch-block-content")
     public ResponseEntity<Object> findBlockContent(@RequestParam(name = "block-hash") String hash) {
         return service.constructResponseForFetchBlockContent(hash);
     }
 
     @GetMapping("fetch-block-content-by-height/{height}")
-    public ResponseEntity<Object> fetchBlockContentByHeight(@PathVariable("height") String height) throws FileNotFoundException, ParseException {
+    public ResponseEntity<Object> fetchBlockContentByHeight(@PathVariable("height") String height) {
         return service.constructResponseForFetchBlockContentByHeight(height);
     }
 
-    @DeleteMapping()
+    @DeleteMapping("delete")
     public ResponseEntity<Object> delete(@RequestParam(name = "db") String db, @RequestParam(name = "key") String key) {
         return service.delete(key, db);
     }
@@ -62,6 +56,11 @@ public class BlockchainController {
     @PostMapping("check-address-validity")
     public ResponseEntity<Object> checkAddressValidity(@RequestBody VerifyAddressRequestDto request) {
         return service.constructResponseForValidateAddress(request);
+    }
+
+    @GetMapping("fetch-utxos")
+    public ResponseEntity<Object> fetchUTXOs(@RequestParam(name = "dodo-coin-address") String address) {
+        return service.fetchUTXOs(address);
     }
 
     @GetMapping("make-transaction")

@@ -3,25 +3,20 @@ package io.mycrypto.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import io.mycrypto.dto.CreateWalletRequestDto;
-import io.mycrypto.dto.VerifyAddressRequestDto;
 import io.mycrypto.dto.WalletInfoDto;
-import io.mycrypto.dto.WalletResponseDto;
+import io.mycrypto.dto.WalletUTXOsDto;
 import io.mycrypto.entity.Block;
 import io.mycrypto.entity.Output;
-import io.mycrypto.entity.ScriptPublicKey;
 import io.mycrypto.entity.Transaction;
 import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
+import org.bitcoinj.core.Base58;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.ObjectUtils;
-import org.bitcoinj.core.Base58;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -111,7 +106,41 @@ public class BlockchainService {
 
         rocksDB.save(tx.getTransactionId(), json, "Transactions");
 
+
+        // get toAddress of Outputs and the subsequent VOUT
+        Map<String, Long> map = new HashMap<>();
+
+        for (Output out: tx.getOutputs())
+            map.put(out.getScriptPubKey().getAddress(), out.getN());
+
+        // save transaction information to AccountsDB if transaction has your wallet address
+
+        // fetch list of wallet info to obtain all wallet addresses
+        Map<String, String> info = rocksDB.getList("Wallets");
+        if (info == null) {
+            log.error("No content found in Wallets DB, Looks like you haven't created a wallet yet...");
+            return false;
+        }
+        for (Map.Entry<String, String> i : info.entrySet()) {
+            WalletInfoDto temp = null;
+            try {
+                temp = new ObjectMapper().readValue(i.getValue(), WalletInfoDto.class);
+            } catch (JsonProcessingException e) {
+                log.error("Error occurred while trying to parse data from Wallets DB to that of type <WalletInfoDto>...");
+                return false;
+            }
+            if (temp.getAddress().equals(tx.getTo())) {
+                addTransactionToAccounts(temp.getAddress(), tx.getTransactionId(), map.get(temp.getAddress()));
+                return true;
+            }
+        }
+
         return true;
+    }
+
+    void addTransactionToAccounts(String address, String txId, long vout) {
+        String existingTransactions = rocksDB.find(address, "Accounts");
+        rocksDB.save(address, (existingTransactions.equals("EMPTY") ? "" : existingTransactions + " ") + txId + "," + vout, "Accounts");
     }
 
     JSONObject fetchBlockContent(String hash) throws NullPointerException, IOException, ParseException {
@@ -129,7 +158,7 @@ public class BlockchainService {
             }
         }
         log.info("File content in HEX ==> {}", result);
-        JSONObject response =  (JSONObject) new JSONParser().parse(new String(Base64.getDecoder().decode(result.substring(MAGIC_BYTES.length()))));
+        JSONObject response = (JSONObject) new JSONParser().parse(new String(Base64.getDecoder().decode(result.substring(MAGIC_BYTES.length()))));
         response.remove("transactions");
         return response;
     }
@@ -150,7 +179,7 @@ public class BlockchainService {
         return (JSONObject) new JSONParser().parse(new String(Base64.getDecoder().decode(result.substring(MAGIC_BYTES.length()))));
     }
 
-    public boolean verifyAddress(String address, String hash160) {
+    boolean verifyAddress(String address, String hash160) {
         String inputs = """
                 {
                     "address": "%s",
@@ -175,5 +204,25 @@ public class BlockchainService {
         log.info("checksum from public-key: {}", Utility.bytesToHex(checksum));
 
         return Arrays.equals(checksumFromAddress, checksum) && hash160.equals(Utility.bytesToHex(hash160FromAddress));
+    }
+
+    List<WalletUTXOsDto> retrieveUTXOFromWallet(String[] transactions) throws JsonProcessingException {
+        List<WalletUTXOsDto> result = new ArrayList<>();
+        for (String s : transactions) {
+            String[] temp = s.split(",");
+            String transaction = rocksDB.find(temp[0], "Transactions");
+            if (transaction == null) {
+                log.error("Could not find transaction {} obtained from Account DB in Transactions DB", temp[0]);
+                return null;
+            }
+            BigDecimal amount =  new ObjectMapper().readValue(transaction, Transaction.class).getOutputs().get(Integer.parseInt(temp[1])).getAmount();
+            result.add(WalletUTXOsDto.builder()
+                            .transactionId(s)
+                            .vout(Long.parseLong(temp[1]))
+                            .amount(amount)
+                    .build()
+            );
+        }
+        return result;
     }
 }

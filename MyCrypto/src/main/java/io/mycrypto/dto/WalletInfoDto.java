@@ -18,7 +18,4 @@ public class WalletInfoDto {
 
     @JsonProperty("dodo-coin-address")
     String address;
-
-    @JsonProperty("balance-in-dodo-coin")
-    BigDecimal balance;
 }

@@ -1,6 +1,5 @@
 package io.mycrypto.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.mycrypto.util.Utility;
 import lombok.Data;

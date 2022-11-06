@@ -1,7 +1,6 @@
 package io.mycrypto.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mycrypto.dto.WalletInfoDto;
 import lombok.extern.slf4j.Slf4j;
@@ -12,13 +11,11 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPoint;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
@@ -65,10 +62,10 @@ public final class Utility {
 
     /*---- Private functions ----*/
 
-    public static String generateKeyPairToFile() {
+    public static WalletInfoDto generateKeyPairToFile() {
         Security.addProvider(new BouncyCastleProvider());
         try (FileOutputStream pubKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + PUBLIC_KEY_NAME + ".pem");
-            FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + PRIVATE_KEY_NAME + ".pem")) {
+             FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + PRIVATE_KEY_NAME + ".pem")) {
 
             KeyPairGenerator generator = KeyPairGenerator.getInstance("ECDSA", "BC");
             ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256k1");
@@ -90,7 +87,8 @@ public final class Utility {
 
             String publicKeyString = "-----BEGIN PUBLIC KEY-----" + "\n" +
                     Base64.getMimeEncoder().encodeToString(publicKey.getEncoded()) + "\n" +
-                    "-----END PUBLIC KEY-----";;
+                    "-----END PUBLIC KEY-----";
+            ;
 
             log.info(PUBLIC_KEY_NAME + ".pem ==> \n" + publicKeyString + "\n");
 
@@ -133,9 +131,8 @@ public final class Utility {
             data.setPrivateKey(bytesToHex(privateKey.getEncoded()));
             data.setHash160(bytesToHex(ripeMD));
             data.setAddress(Base58.encode(sumBytes));
-            data.setBalance(new BigDecimal("0.0"));
 
-            return new ObjectMapper().writeValueAsString(data);
+            return data;
         } catch (IOException | NoSuchAlgorithmException e) {
             e.printStackTrace();
         } catch (InvalidAlgorithmParameterException | NoSuchProviderException e) {
@@ -146,7 +143,7 @@ public final class Utility {
 
     public static String bytesToHex(byte[] a) {
         StringBuilder sb = new StringBuilder(a.length * 2);
-        for(byte b: a)
+        for (byte b : a)
             sb.append(String.format("%02x", b));
         return sb.toString();
     }

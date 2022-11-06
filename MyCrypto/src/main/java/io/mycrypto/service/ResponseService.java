@@ -2,10 +2,7 @@ package io.mycrypto.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.mycrypto.dto.CreateWalletRequestDto;
-import io.mycrypto.dto.VerifyAddressRequestDto;
-import io.mycrypto.dto.WalletInfoDto;
-import io.mycrypto.dto.WalletResponseDto;
+import io.mycrypto.dto.*;
 import io.mycrypto.entity.Block;
 import io.mycrypto.entity.Output;
 import io.mycrypto.entity.ScriptPublicKey;
@@ -26,20 +23,18 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
 public class ResponseService {
 
+    private static final String BLOCKCHAIN_STORAGE_PATH = "C:\\REPO\\Github\\blockchain";
+    private static final String BLOCK_REWARD = "13.0";
     @Autowired
     BlockchainService service;
-
     @Autowired
     KeyValueRepository<String, String> rocksDB;
-
-    private static final String BLOCKCHAIN_STORAGE_PATH = "C:\\REPO\\Github\\blockchain";
-
-    private static final String BLOCK_REWARD = "13.0";
 
     public ResponseEntity<Object> constructResponseForFetchBlockContent(String hash) {
         try {
@@ -48,7 +43,7 @@ public class ResponseService {
             log.error("Wrong hash provided. The fetch from DB method returns NULL");
             e.printStackTrace();
             return ResponseEntity.noContent().build();
-        } catch(IOException e) {
+        } catch (IOException e) {
             log.error("Error occurred while referring to new file PATH..");
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("error-msg", "File path referred to in DB is wrong or the file does not exist in that location"));
         } catch (ParseException e) {
@@ -57,19 +52,21 @@ public class ResponseService {
         }
     }
 
-    public ResponseEntity<Object> fetchBlockPath(String hash) {
-        String path = rocksDB.find(hash, "Blockchain");
-        return ResponseEntity.ok(service.constructJsonResponse(ObjectUtils.isEmpty(path) ? "msg" : "path-where-block-is-stored", ObjectUtils.isEmpty(path) ? "Unable to find block with hash " + hash : path));
-    }
-
-    public ResponseEntity<WalletResponseDto> createWallet(CreateWalletRequestDto request) {
-        String value = Utility.generateKeyPairToFile();
+    public ResponseEntity<Object> createWallet(CreateWalletRequestDto request) {
+        WalletInfoDto value = Utility.generateKeyPairToFile();
         log.info("\n {}", request.getWalletName());
-        rocksDB.save(request.getWalletName(), value, "Wallets");
-        return constructWalletResponseFromInfo(value);
+        try {
+            rocksDB.save(request.getWalletName(), new ObjectMapper().writeValueAsString(value), "Wallets");
+            assert value != null;
+            rocksDB.save(value.getAddress(), "EMPTY", "Accounts");
+            return constructWalletResponseFromInfo(new ObjectMapper().writeValueAsString(value));
+        } catch (JsonProcessingException e) {
+            log.error("Error while trying to parse WalletInfoDto to JSON...");
+            return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Encountered an error while parsing..."));
+        }
     }
 
-    public ResponseEntity<WalletResponseDto> fetchWalletInfo(String walletName) {
+    public ResponseEntity<Object> fetchWalletInfo(String walletName) {
         String value = rocksDB.find(walletName, "Wallets");
         log.info("Name of wallet: {}", walletName);
         if (value == null) return ResponseEntity.noContent().build();
@@ -164,11 +161,11 @@ public class ResponseService {
         }
     }
 
-    private ResponseEntity<WalletResponseDto> constructWalletResponseFromInfo(String data) {
+    private ResponseEntity<Object> constructWalletResponseFromInfo(String data) {
         WalletInfoDto info = null;
         try {
             info = new ObjectMapper().readValue(data, WalletInfoDto.class);
-            log.info("Wallet Contents: {}", new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(info));
+            log.info("Wallet Contents: \n{}", new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(info));
         } catch (JsonProcessingException e) {
             log.error("Error while parsing json to WalletInfoDto..");
             e.printStackTrace();
@@ -178,15 +175,73 @@ public class ResponseService {
         response.setPublicKey(info.getPublicKey());
         response.setPrivateKey(info.getPublicKey());
         response.setHash160(info.getHash160());
-        response.setBalance(new BigDecimal("0.0"));
+
+        // calculate balance from AccountDB
+        String transactions = rocksDB.find(info.getAddress(), "Accounts");
+        if (transactions.equals("EMPTY"))
+            response.setBalance(new BigDecimal("0.0"));
+        else {
+            BigDecimal sum = new BigDecimal("0.0");
+            List<WalletUTXOsDto> UTXOs;
+            try {
+                UTXOs = service.retrieveUTXOFromWallet(transactions.split("\s"));
+            } catch (JsonProcessingException e) {
+                log.error("Error while parsing data in Transaction DB to an object of class <Transaction>");
+                e.printStackTrace();
+                return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Couldn't parse transaction data(String) to Object<Transaction>..."));
+            }
+
+            if (UTXOs == null)
+                return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
+            for (WalletUTXOsDto utxo: UTXOs)
+                sum = sum.add(utxo.getAmount());
+            response.setBalance(sum);
+            try {
+                log.info("UTXOs for address {} : \n{}", info.getAddress(), new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(WalletUTXOsResponseDto.builder()
+                        .UTXOs(UTXOs)
+                        .total(sum)
+                        .build()
+                ));
+            } catch (JsonProcessingException e) {
+                log.error("Error while parsing WalletUTXOsResponseDto to JSON..");
+                e.printStackTrace();
+                return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Couldn't parse WalletUTXOsResponseDto to JSON..."));
+            }
+
+        }
+
         response.setAddress(info.getAddress());
+        return ResponseEntity.ok(response);
+    }
+
+    public ResponseEntity<Object> fetchUTXOs(String address) {
+        BigDecimal sum = new BigDecimal("0.0");
+        List<WalletUTXOsDto> UTXOs;
+        WalletUTXOsResponseDto response;
+        try {
+            String transactions = rocksDB.find(address, "Accounts");
+            UTXOs = service.retrieveUTXOFromWallet(transactions.split("\s"));
+            if (UTXOs == null)
+                return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
+            for (WalletUTXOsDto utxo: UTXOs)
+                sum = sum.add(utxo.getAmount());
+            response = WalletUTXOsResponseDto.builder()
+                            .UTXOs(UTXOs)
+                            .total(sum)
+                    .build();
+            log.info("UTXOs for address {} : \n{}", address, new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(response));
+        } catch (JsonProcessingException e) {
+            log.error("Error while parsing WalletUTXOsResponseDto to JSON..");
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Couldn't parse WalletUTXOsResponseDto to JSON..."));
+        }
         return ResponseEntity.ok(response);
     }
 
     public void makeTransaction() {
         Transaction t1 = new Transaction(), t2 = new Transaction();
         JSONObject walletAinfo = null, walletBinfo = null;
-        try{
+        try {
             walletAinfo = (JSONObject) new JSONParser().parse(rocksDB.find("A", "Wallets"));
             walletBinfo = (JSONObject) new JSONParser().parse(rocksDB.find("B", "Wallets"));
         } catch (ParseException e) {

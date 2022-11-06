@@ -1,5 +1,7 @@
 package io.mycrypto.repository;
 
+import java.util.Map;
+
 public interface KeyValueRepository<K, V> {
 
     void save(K key, V value, String db);
@@ -9,5 +11,5 @@ public interface KeyValueRepository<K, V> {
     //to be used only when orphan blocks are detected (will only be applicable locally)
     boolean delete(K key, String db);
 
-    void getList();
+    Map<String, String> getList(String db);
 }

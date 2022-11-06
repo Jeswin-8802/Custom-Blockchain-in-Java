@@ -1,8 +1,6 @@
 package io.mycrypto.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mycrypto.util.Utility;
 import lombok.Data;
 import lombok.ToString;
