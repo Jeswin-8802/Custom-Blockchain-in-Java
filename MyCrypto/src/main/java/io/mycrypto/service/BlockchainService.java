@@ -54,10 +54,12 @@ public class BlockchainService {
             DataOutputStream out = new DataOutputStream(new FileOutputStream(BLOCKCHAIN_STORAGE_PATH + "\\" + blockFileName + ".dat"));
             out.writeUTF(MAGIC_BYTES + Base64.getEncoder().withoutPadding().encodeToString(json.getBytes()));
             out.close();
-        } catch (FileNotFoundException ex) {
-            log.error("Error occurred while creating {} at location {} \nexception: {}, message: {}, stackTrace: {}", blockFileName, BLOCKCHAIN_STORAGE_PATH, ex.getCause(), ex.getMessage(), ex.getStackTrace());
-        } catch (IOException ex) {
-            log.error("Error occurred while creating DataOutputStream \nexception: {}, message: {}, stackTrace: {}", ex.getCause(), ex.getMessage(), ex.getStackTrace());
+        } catch (FileNotFoundException e) {
+            log.error("Error occurred while creating {} at location {} ", blockFileName, BLOCKCHAIN_STORAGE_PATH);
+            e.printStackTrace();
+        } catch (IOException e) {
+            log.error("Error occurred while creating DataOutputStream");
+            e.printStackTrace();
         }
 
         return json;
@@ -70,7 +72,7 @@ public class BlockchainService {
                 return (JSONObject) new JSONParser().parse(json);
             throw new NullPointerException();
         } catch (ParseException e) {
-            log.error("Error while parsing contemts of {} in DB to JSON", id);
+            log.error("Error while parsing contents of {} in DB to JSON", id);
             e.printStackTrace();
         }
         return null;
@@ -127,6 +129,7 @@ public class BlockchainService {
                 temp = new ObjectMapper().readValue(i.getValue(), WalletInfoDto.class);
             } catch (JsonProcessingException e) {
                 log.error("Error occurred while trying to parse data from Wallets DB to that of type <WalletInfoDto>...");
+                e.printStackTrace();
                 return false;
             }
             if (temp.getAddress().equals(tx.getTo())) {

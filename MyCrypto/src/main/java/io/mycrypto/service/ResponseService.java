@@ -45,9 +45,11 @@ public class ResponseService {
             return ResponseEntity.noContent().build();
         } catch (IOException e) {
             log.error("Error occurred while referring to new file PATH..");
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("error-msg", "File path referred to in DB is wrong or the file does not exist in that location"));
         } catch (ParseException e) {
             log.error("Error occurred while parsing contents of block file to JSON");
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("error-msg", "Error while parsing Block data"));
         }
     }
@@ -62,6 +64,7 @@ public class ResponseService {
             return constructWalletResponseFromInfo(new ObjectMapper().writeValueAsString(value));
         } catch (JsonProcessingException e) {
             log.error("Error while trying to parse WalletInfoDto to JSON...");
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Encountered an error while parsing..."));
         }
     }
@@ -154,9 +157,11 @@ public class ResponseService {
             return ResponseEntity.ok(service.fetchBlockContentByHeight(Integer.parseInt(height)));
         } catch (FileNotFoundException e) {
             log.error("Invalid height specified... Unable to find {}", "\\blk" + String.format("%010d", Integer.parseInt(height) + 1) + ".dat");
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(service.constructJsonResponse("msg", "Block with height " + height + " was not found"));
         } catch (ParseException e) {
             log.error("error while parsing contents in file " + BLOCKCHAIN_STORAGE_PATH + "\\blk" + String.format("%010d", Integer.parseInt(height) + 1) + ".dat to JSON");
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Couldn't Parse block contents to JSON..."));
         }
     }
