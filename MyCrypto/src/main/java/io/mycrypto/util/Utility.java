@@ -8,6 +8,7 @@ import org.bitcoinj.core.Base58;
 import org.bitcoinj.core.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -16,6 +17,7 @@ import java.security.*;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPoint;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
@@ -201,5 +203,14 @@ public final class Utility {
             size /= 2;
         }
         return transactionIds.get(0);
+    }
+
+    public static List<String> listFilesInDirectory(String path) {
+        File f = new File("D:/Programming");
+
+        // Populates the array with names of files and directories
+        List<String> pathNames = new ArrayList<>(List.of(f.list()));
+
+        return pathNames;
     }
 }

@@ -83,6 +83,10 @@ public class ResponseService {
     }
 
     public ResponseEntity<Object> createGenesisBlock() {
+        // check for if genesis block already exists
+
+
+
         Block genesis = new Block();
         genesis.setPreviousHash("0");
         genesis.setHeight(0);
