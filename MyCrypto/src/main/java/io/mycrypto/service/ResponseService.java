@@ -84,8 +84,14 @@ public class ResponseService {
 
     public ResponseEntity<Object> createGenesisBlock() {
         // check for if genesis block already exists
+        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
 
-
+        if (!ObjectUtils.isEmpty(files) && files.get(0).equals("INVALID DIRECTORY"))
+            return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "The configuration set for the block storage path is invalid as that directory wasn't found"));
+        else if (!ObjectUtils.isEmpty(files)) {
+            log.info("Files present in directory \"{}\" : \n{}", BLOCKCHAIN_STORAGE_PATH, files);
+            return ResponseEntity.badRequest().body(service.constructJsonResponse("msg", "genesis block already exists"));
+        }
 
         Block genesis = new Block();
         genesis.setPreviousHash("0");
