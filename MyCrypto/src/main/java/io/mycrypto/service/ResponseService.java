@@ -96,6 +96,7 @@ public class ResponseService {
     }
 
     public ResponseEntity<Object> createGenesisBlock() {
+
         File base = new File(BLOCKCHAIN_STORAGE_PATH);
         if (base.isDirectory())
             log.info("The directory \"blockchain\" found... \nAdding blocks...");
