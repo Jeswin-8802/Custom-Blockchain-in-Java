@@ -4,15 +4,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mycrypto.dto.WalletInfoDto;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.SystemUtils;
+import org.apache.logging.log4j.util.Strings;
 import org.bitcoinj.core.Base58;
 import org.bitcoinj.core.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.apache.commons.lang3.SystemUtils;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.math.BigDecimal;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.interfaces.ECPublicKey;
@@ -25,10 +24,21 @@ import java.util.*;
 public final class Utility {
     private static final String PUBLIC_KEY_NAME = "myPublicKey";
     private static final String PRIVATE_KEY_NAME = "myPrivateKey";
-    private static final String LOCATION_TO_STORE_KEYS = "src/main/resources/";
+    private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
+    private static final String FOLDER_TO_STORE_KEYS = "KEYS";
+
+    private static final String LOCATION_TO_STORE_KEY;
 
     private static final byte EVEN = 0x02;
     private static final byte ODD = 0x03;
+
+    static {
+        LOCATION_TO_STORE_KEY = SystemUtils.USER_DIR + osAppender() + OUTER_RESOURCE_FOLDER + osAppender() + FOLDER_TO_STORE_KEYS + osAppender();
+    }
+
+    public static String osAppender() {
+        return SystemUtils.IS_OS_LINUX ? "/" : "\\";
+    }
 
     // sha-384 hashing function
     public static String getHashSHA384(String input) {
@@ -63,10 +73,23 @@ public final class Utility {
 
     /*---- Private functions ----*/
 
-    public static WalletInfoDto generateKeyPairToFile() {
+    public static WalletInfoDto generateKeyPairToFile(String keyName) throws FileNotFoundException {
+
+        File base = new File(LOCATION_TO_STORE_KEY);
+        if (base.isDirectory())
+            log.info("The directory \"KEYS\" found... \nAdding keys to folder");
+        else {
+            if (base.mkdir())
+                log.info("directory \"KEYS\" created... \nAdding keys to folder");
+            else {
+                log.error("Unable to create dir \"KEYS\"");
+                throw new FileNotFoundException("Unable to create dir \"KEYS\"");
+            }
+        }
+
         Security.addProvider(new BouncyCastleProvider());
-        try (FileOutputStream pubKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + PUBLIC_KEY_NAME + ".pem");
-             FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEYS + PRIVATE_KEY_NAME + ".pem")) {
+        try (FileOutputStream pubKey = new FileOutputStream(LOCATION_TO_STORE_KEY + (Strings.isNotEmpty(keyName) ? keyName + "_pub" : PUBLIC_KEY_NAME) + ".pem");
+             FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEY + (Strings.isNotEmpty(keyName) ? keyName + "_prv" : PRIVATE_KEY_NAME) + ".pem")) {
 
             KeyPairGenerator generator = KeyPairGenerator.getInstance("ECDSA", "BC");
             ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256k1");

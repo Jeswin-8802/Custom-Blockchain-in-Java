@@ -11,6 +11,7 @@ import io.mycrypto.entity.Transaction;
 import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.SystemUtils;
 import org.bitcoinj.core.Base58;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -27,12 +28,17 @@ import java.util.*;
 @Service
 public class BlockchainService {
 
-    private static final String BLOCKCHAIN_STORAGE_PATH = "C:\\REPO\\Github\\blockchain";
-
     private static final String BLOCK_REWARD = "13.0";
     private static final String MAGIC_BYTES = "f9beb4d9"; // help you spot when a new message starts when sending or receiving a continuous stream of data
     @Autowired
     KeyValueRepository<String, String> rocksDB;
+
+    private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
+    private static final String FOLDER_TO_STORE_BLOCKS = "blockchain";
+    private static final String BLOCKCHAIN_STORAGE_PATH;
+    static {
+        BLOCKCHAIN_STORAGE_PATH = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_BLOCKS + Utility.osAppender();
+    }
 
     String saveBlock(Block blk, String blockFileName) {
         String json = null;
@@ -48,10 +54,10 @@ public class BlockchainService {
             return json;
         }
 
-        rocksDB.save(blk.getHash(), BLOCKCHAIN_STORAGE_PATH + "\\" + blockFileName + ".dat", "Blockchain");
+        rocksDB.save(blk.getHash(), BLOCKCHAIN_STORAGE_PATH + blockFileName + ".dat", "Blockchain");
 
         try {
-            DataOutputStream out = new DataOutputStream(new FileOutputStream(BLOCKCHAIN_STORAGE_PATH + "\\" + blockFileName + ".dat"));
+            DataOutputStream out = new DataOutputStream(new FileOutputStream(BLOCKCHAIN_STORAGE_PATH + blockFileName + ".dat"));
             out.writeUTF(MAGIC_BYTES + Base64.getEncoder().withoutPadding().encodeToString(json.getBytes()));
             out.close();
         } catch (FileNotFoundException e) {
@@ -167,7 +173,7 @@ public class BlockchainService {
     }
 
     JSONObject fetchBlockContentByHeight(int height) throws FileNotFoundException, ParseException {
-        DataInputStream in = new DataInputStream(new FileInputStream(BLOCKCHAIN_STORAGE_PATH + "\\blk" + String.format("%010d", height + 1) + ".dat"));
+        DataInputStream in = new DataInputStream(new FileInputStream(BLOCKCHAIN_STORAGE_PATH + "blk" + String.format("%010d", height + 1) + ".dat"));
         boolean eof = false;
         StringBuilder result = new StringBuilder();
         while (!eof) {

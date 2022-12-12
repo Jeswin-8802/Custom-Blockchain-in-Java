@@ -10,6 +10,8 @@ import io.mycrypto.entity.Transaction;
 import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.SystemUtils;
+import org.apache.logging.log4j.util.Strings;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -18,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -27,13 +30,18 @@ import java.util.List;
 @Service
 @Slf4j
 public class ResponseService {
-
-    private static final String BLOCKCHAIN_STORAGE_PATH = "C:\\REPO\\Github\\blockchain";
     private static final String BLOCK_REWARD = "13.0";
     @Autowired
     BlockchainService service;
     @Autowired
     KeyValueRepository<String, String> rocksDB;
+
+    private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
+    private static final String FOLDER_TO_STORE_BLOCKS = "blockchain";
+    private static final String BLOCKCHAIN_STORAGE_PATH;
+    static {
+        BLOCKCHAIN_STORAGE_PATH = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_BLOCKS + Utility.osAppender();
+    }
 
     public ResponseEntity<Object> constructResponseForFetchBlockContent(String hash) {
         try {
@@ -54,7 +62,13 @@ public class ResponseService {
     }
 
     public ResponseEntity<Object> createWallet(CreateWalletRequestDto request) {
-        WalletInfoDto value = Utility.generateKeyPairToFile();
+        WalletInfoDto value = null;
+        try {
+            value = Utility.generateKeyPairToFile(request.getKeyName());
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
         log.info("\n {}", request.getWalletName());
         try {
             rocksDB.save(request.getWalletName(), new ObjectMapper().writeValueAsString(value), "Wallets");
@@ -82,6 +96,18 @@ public class ResponseService {
     }
 
     public ResponseEntity<Object> createGenesisBlock() {
+        File base = new File(BLOCKCHAIN_STORAGE_PATH);
+        if (base.isDirectory())
+            log.info("The directory \"blockchain\" found... \nAdding blocks...");
+        else {
+            if (base.mkdir())
+                log.info("directory \"blockchain\" created... \nAdding blocks...");
+            else {
+                log.error("Unable to create dir \"blockchain\"");
+                return ResponseEntity.badRequest().body(service.constructJsonResponse("error", "unable to create dir \"blockchain\"..."));
+            }
+        }
+
         // check for if genesis block already exists
         List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
 
@@ -235,6 +261,12 @@ public class ResponseService {
         WalletUTXOResponseDto response;
         try {
             String transactions = rocksDB.find(address, "Accounts");
+
+            if(Strings.isEmpty(transactions)) {
+                log.error(String.format("No transaction(s) found with address: %s", address));
+                return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", String.format("No transaction(s) found with address: %s", address)));
+            }
+
             UTXOs = service.retrieveUTXOFromWallet(transactions.split("\s"));
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
