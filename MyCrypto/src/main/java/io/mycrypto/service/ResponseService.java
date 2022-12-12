@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Slf4j
@@ -45,9 +44,11 @@ public class ResponseService {
             return ResponseEntity.noContent().build();
         } catch (IOException e) {
             log.error("Error occurred while referring to new file PATH..");
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("error-msg", "File path referred to in DB is wrong or the file does not exist in that location"));
         } catch (ParseException e) {
             log.error("Error occurred while parsing contents of block file to JSON");
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("error-msg", "Error while parsing Block data"));
         }
     }
@@ -62,6 +63,7 @@ public class ResponseService {
             return constructWalletResponseFromInfo(new ObjectMapper().writeValueAsString(value));
         } catch (JsonProcessingException e) {
             log.error("Error while trying to parse WalletInfoDto to JSON...");
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Encountered an error while parsing..."));
         }
     }
@@ -80,6 +82,17 @@ public class ResponseService {
     }
 
     public ResponseEntity<Object> createGenesisBlock() {
+        // check for if genesis block already exists
+        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
+
+        if (!ObjectUtils.isEmpty(files) &&
+                files.get(0).equals("INVALID DIRECTORY"))
+            return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "The configuration set for the block storage path is invalid as that directory wasn't found"));
+        else if (!ObjectUtils.isEmpty(files)) {
+            log.info("Files present in directory \"{}\" : \n{}", BLOCKCHAIN_STORAGE_PATH, files);
+            return ResponseEntity.badRequest().body(service.constructJsonResponse("msg", "genesis block already exists"));
+        }
+
         Block genesis = new Block();
         genesis.setPreviousHash("0");
         genesis.setHeight(0);
@@ -109,8 +122,8 @@ public class ResponseService {
         output.setScriptPubKey(script);
         // set output
         coinbase.setOutputs(List.of(output));
-        coinbase.setUTXO(new BigDecimal("0.0")); // 0 as there are no inputs
-        coinbase.setMsg("The first transaction and only transaction within the genesis block...");
+        coinbase.setSpent(new BigDecimal("0.0")); // 0 as there are no inputs
+        coinbase.setMsg("The first and only transaction within the genesis block...");
         coinbase.calculateHash();// calculates and sets transactionId
         if (!service.saveTransaction(coinbase))
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "unable to save coinbase transaction to DataBase..."));
@@ -154,9 +167,11 @@ public class ResponseService {
             return ResponseEntity.ok(service.fetchBlockContentByHeight(Integer.parseInt(height)));
         } catch (FileNotFoundException e) {
             log.error("Invalid height specified... Unable to find {}", "\\blk" + String.format("%010d", Integer.parseInt(height) + 1) + ".dat");
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(service.constructJsonResponse("msg", "Block with height " + height + " was not found"));
         } catch (ParseException e) {
             log.error("error while parsing contents in file " + BLOCKCHAIN_STORAGE_PATH + "\\blk" + String.format("%010d", Integer.parseInt(height) + 1) + ".dat to JSON");
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Couldn't Parse block contents to JSON..."));
         }
     }
@@ -182,7 +197,7 @@ public class ResponseService {
             response.setBalance(new BigDecimal("0.0"));
         else {
             BigDecimal sum = new BigDecimal("0.0");
-            List<WalletUTXOsDto> UTXOs;
+            List<WalletUTXODto> UTXOs;
             try {
                 UTXOs = service.retrieveUTXOFromWallet(transactions.split("\s"));
             } catch (JsonProcessingException e) {
@@ -193,11 +208,11 @@ public class ResponseService {
 
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
-            for (WalletUTXOsDto utxo: UTXOs)
+            for (WalletUTXODto utxo: UTXOs)
                 sum = sum.add(utxo.getAmount());
             response.setBalance(sum);
             try {
-                log.info("UTXOs for address {} : \n{}", info.getAddress(), new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(WalletUTXOsResponseDto.builder()
+                log.info("UTXOs for address {} : \n{}", info.getAddress(), new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(WalletUTXOResponseDto.builder()
                         .UTXOs(UTXOs)
                         .total(sum)
                         .build()
@@ -216,16 +231,16 @@ public class ResponseService {
 
     public ResponseEntity<Object> fetchUTXOs(String address) {
         BigDecimal sum = new BigDecimal("0.0");
-        List<WalletUTXOsDto> UTXOs;
-        WalletUTXOsResponseDto response;
+        List<WalletUTXODto> UTXOs;
+        WalletUTXOResponseDto response;
         try {
             String transactions = rocksDB.find(address, "Accounts");
             UTXOs = service.retrieveUTXOFromWallet(transactions.split("\s"));
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
-            for (WalletUTXOsDto utxo: UTXOs)
+            for (WalletUTXODto utxo: UTXOs)
                 sum = sum.add(utxo.getAmount());
-            response = WalletUTXOsResponseDto.builder()
+            response = WalletUTXOResponseDto.builder()
                             .UTXOs(UTXOs)
                             .total(sum)
                     .build();

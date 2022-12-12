@@ -8,7 +8,9 @@ import org.bitcoinj.core.Base58;
 import org.bitcoinj.core.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -16,8 +18,7 @@ import java.security.*;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPoint;
-import java.util.Base64;
-import java.util.List;
+import java.util.*;
 
 
 @Slf4j
@@ -201,5 +202,13 @@ public final class Utility {
             size /= 2;
         }
         return transactionIds.get(0);
+    }
+
+    public static List<String> listFilesInDirectory(String path) {
+        FilenameFilter filter = (f, name) -> name.endsWith(".dat");
+        File f = new File(path);
+        if (f.exists() && f.isDirectory())
+            return new ArrayList<>(List.of(Objects.requireNonNull(f.list(filter))));
+        return new ArrayList<>(List.of("INVALID DIRECTORY"));
     }
 }

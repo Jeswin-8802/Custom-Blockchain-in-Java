@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.mycrypto.dto.WalletInfoDto;
-import io.mycrypto.dto.WalletUTXOsDto;
+import io.mycrypto.dto.WalletUTXODto;
 import io.mycrypto.entity.Block;
 import io.mycrypto.entity.Output;
 import io.mycrypto.entity.Transaction;
@@ -54,10 +54,12 @@ public class BlockchainService {
             DataOutputStream out = new DataOutputStream(new FileOutputStream(BLOCKCHAIN_STORAGE_PATH + "\\" + blockFileName + ".dat"));
             out.writeUTF(MAGIC_BYTES + Base64.getEncoder().withoutPadding().encodeToString(json.getBytes()));
             out.close();
-        } catch (FileNotFoundException ex) {
-            log.error("Error occurred while creating {} at location {} \nexception: {}, message: {}, stackTrace: {}", blockFileName, BLOCKCHAIN_STORAGE_PATH, ex.getCause(), ex.getMessage(), ex.getStackTrace());
-        } catch (IOException ex) {
-            log.error("Error occurred while creating DataOutputStream \nexception: {}, message: {}, stackTrace: {}", ex.getCause(), ex.getMessage(), ex.getStackTrace());
+        } catch (FileNotFoundException e) {
+            log.error("Error occurred while creating {} at location {} ", blockFileName, BLOCKCHAIN_STORAGE_PATH);
+            e.printStackTrace();
+        } catch (IOException e) {
+            log.error("Error occurred while creating DataOutputStream");
+            e.printStackTrace();
         }
 
         return json;
@@ -70,7 +72,7 @@ public class BlockchainService {
                 return (JSONObject) new JSONParser().parse(json);
             throw new NullPointerException();
         } catch (ParseException e) {
-            log.error("Error while parsing contemts of {} in DB to JSON", id);
+            log.error("Error while parsing contents of {} in DB to JSON", id);
             e.printStackTrace();
         }
         return null;
@@ -127,6 +129,7 @@ public class BlockchainService {
                 temp = new ObjectMapper().readValue(i.getValue(), WalletInfoDto.class);
             } catch (JsonProcessingException e) {
                 log.error("Error occurred while trying to parse data from Wallets DB to that of type <WalletInfoDto>...");
+                e.printStackTrace();
                 return false;
             }
             if (temp.getAddress().equals(tx.getTo())) {
@@ -206,8 +209,8 @@ public class BlockchainService {
         return Arrays.equals(checksumFromAddress, checksum) && hash160.equals(Utility.bytesToHex(hash160FromAddress));
     }
 
-    List<WalletUTXOsDto> retrieveUTXOFromWallet(String[] transactions) throws JsonProcessingException {
-        List<WalletUTXOsDto> result = new ArrayList<>();
+    List<WalletUTXODto> retrieveUTXOFromWallet(String[] transactions) throws JsonProcessingException {
+        List<WalletUTXODto> result = new ArrayList<>();
         for (String s : transactions) {
             String[] temp = s.split(",");
             String transaction = rocksDB.find(temp[0], "Transactions");
@@ -216,8 +219,8 @@ public class BlockchainService {
                 return null;
             }
             BigDecimal amount =  new ObjectMapper().readValue(transaction, Transaction.class).getOutputs().get(Integer.parseInt(temp[1])).getAmount();
-            result.add(WalletUTXOsDto.builder()
-                            .transactionId(s)
+            result.add(WalletUTXODto.builder()
+                            .transactionId(temp[0])
                             .vout(Long.parseLong(temp[1]))
                             .amount(amount)
                     .build()
