@@ -37,7 +37,6 @@ build/
 .springBeans
 .sts4-cache
 bin/
-!**/src/main/**/bin/
 !**/src/test/**/bin/
 
 ### IntelliJ IDEA ###
@@ -64,3 +63,6 @@ mvnw
 mvnw.cmd
 *.pem
 target/
+
+RESOURCES/
+/RESOURCES/

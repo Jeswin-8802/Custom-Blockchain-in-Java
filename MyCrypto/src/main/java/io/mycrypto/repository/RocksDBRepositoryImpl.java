@@ -1,6 +1,8 @@
 package io.mycrypto.repository;
 
+import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.SystemUtils;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -9,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.HashMap;
@@ -24,7 +27,14 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     private final static String DB_NAME_NODES = "Nodes"; // Wallet Address ==> IP Address
     private final static String DB_NAME_WALLETS = "Wallets"; // Wallet-Name ==> "PubKey PrvKey ..."
     private final static String DB_NAME_ACCOUNT = "Accounts"; // Wallet Address ==> "TransactionId1,VOUT TransactionId2,VOUT ..."
-    private final static String LOCATION_TO_BE_STORED = "C:\\REPO\\Github\\rock-db"; // set the location as you like
+    private final static String LOCATION_TO_STORE_DB; // set the location as you like
+
+    private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
+    private static final String FOLDER_TO_STORE_DB = "RocksDB";
+
+    static {
+        LOCATION_TO_STORE_DB = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_DB + Utility.osAppender();
+    }
 
     RocksDB dbBlockchain, dbTransactions, dbTransactionsPool, dbNodes, dbWallets, dbAccount;
     // DB will be stored under: /LOCATION_TO_BE_STORED/DB_NAME
@@ -49,7 +59,17 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     }
 
     private void createDB(Options options, String dbName, String msg) {
-        File dbDir = new File(LOCATION_TO_BE_STORED, dbName);
+        File base = new File(LOCATION_TO_STORE_DB);
+        if (base.isDirectory())
+            log.info("The directory \"RocksDB\" found...");
+        else {
+            if (base.mkdir())
+                log.info("directory \"RocksDB\" created...");
+            else
+                log.error("Unable to create dir \"RocksDB\"");
+        }
+
+        File dbDir = new File(LOCATION_TO_STORE_DB, dbName);
         try {
             Files.createDirectories(dbDir.getParentFile().toPath());
             Files.createDirectories(dbDir.getAbsoluteFile().toPath());
