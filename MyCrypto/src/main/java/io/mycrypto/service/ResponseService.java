@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Slf4j
@@ -86,7 +85,8 @@ public class ResponseService {
         // check for if genesis block already exists
         List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
 
-        if (!ObjectUtils.isEmpty(files) && files.get(0).equals("INVALID DIRECTORY"))
+        if (!ObjectUtils.isEmpty(files) &&
+                files.get(0).equals("INVALID DIRECTORY"))
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "The configuration set for the block storage path is invalid as that directory wasn't found"));
         else if (!ObjectUtils.isEmpty(files)) {
             log.info("Files present in directory \"{}\" : \n{}", BLOCKCHAIN_STORAGE_PATH, files);
@@ -122,8 +122,8 @@ public class ResponseService {
         output.setScriptPubKey(script);
         // set output
         coinbase.setOutputs(List.of(output));
-        coinbase.setUTXO(new BigDecimal("0.0")); // 0 as there are no inputs
-        coinbase.setMsg("The first transaction and only transaction within the genesis block...");
+        coinbase.setSpent(new BigDecimal("0.0")); // 0 as there are no inputs
+        coinbase.setMsg("The first and only transaction within the genesis block...");
         coinbase.calculateHash();// calculates and sets transactionId
         if (!service.saveTransaction(coinbase))
             return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "unable to save coinbase transaction to DataBase..."));
@@ -197,7 +197,7 @@ public class ResponseService {
             response.setBalance(new BigDecimal("0.0"));
         else {
             BigDecimal sum = new BigDecimal("0.0");
-            List<WalletUTXOsDto> UTXOs;
+            List<WalletUTXODto> UTXOs;
             try {
                 UTXOs = service.retrieveUTXOFromWallet(transactions.split("\s"));
             } catch (JsonProcessingException e) {
@@ -208,11 +208,11 @@ public class ResponseService {
 
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
-            for (WalletUTXOsDto utxo: UTXOs)
+            for (WalletUTXODto utxo: UTXOs)
                 sum = sum.add(utxo.getAmount());
             response.setBalance(sum);
             try {
-                log.info("UTXOs for address {} : \n{}", info.getAddress(), new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(WalletUTXOsResponseDto.builder()
+                log.info("UTXOs for address {} : \n{}", info.getAddress(), new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(WalletUTXOResponseDto.builder()
                         .UTXOs(UTXOs)
                         .total(sum)
                         .build()
@@ -231,16 +231,16 @@ public class ResponseService {
 
     public ResponseEntity<Object> fetchUTXOs(String address) {
         BigDecimal sum = new BigDecimal("0.0");
-        List<WalletUTXOsDto> UTXOs;
-        WalletUTXOsResponseDto response;
+        List<WalletUTXODto> UTXOs;
+        WalletUTXOResponseDto response;
         try {
             String transactions = rocksDB.find(address, "Accounts");
             UTXOs = service.retrieveUTXOFromWallet(transactions.split("\s"));
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(service.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
-            for (WalletUTXOsDto utxo: UTXOs)
+            for (WalletUTXODto utxo: UTXOs)
                 sum = sum.add(utxo.getAmount());
-            response = WalletUTXOsResponseDto.builder()
+            response = WalletUTXOResponseDto.builder()
                             .UTXOs(UTXOs)
                             .total(sum)
                     .build();

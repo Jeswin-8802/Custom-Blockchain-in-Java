@@ -38,8 +38,8 @@ public class Transaction {
     long numOutputs;
     @JsonProperty("outputs")
     List<Output> outputs;
-    @JsonProperty("utxo")
-    BigDecimal UTXO; // (Sender's) amount of digital currency remaining after a cryptocurrency transaction is executed (Unspent Transaction Output)
+    @JsonProperty("spent-transactions-total")
+    BigDecimal spent; // (Sender's) amount of digital currency remaining after a cryptocurrency transaction is executed (Unspent Transaction Output)
     @JsonProperty("message")
     String msg = "transferring...";
     @JsonProperty("transaction-fee")
@@ -56,6 +56,6 @@ public class Transaction {
     }
 
     public void calculateHash() {
-        this.transactionId = Utility.getHashSHA384(Objects.requireNonNull(Utility.getHashSHA384(this.timeStamp + this.from + this.to + this.numInputs + this.inputs + this.outputs + this.UTXO + this.transactionFee)));
+        this.transactionId = Utility.getHashSHA384(Objects.requireNonNull(Utility.getHashSHA384(this.timeStamp + this.from + this.to + this.numInputs + this.inputs + this.outputs + this.spent + this.transactionFee)));
     }
 }
