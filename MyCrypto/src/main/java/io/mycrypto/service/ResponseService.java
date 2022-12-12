@@ -132,7 +132,7 @@ public class ResponseService {
         List<String> transactionIds = new ArrayList<>();
         transactionIds.add(coinbase.getTransactionId());
         genesis.setTransactionIds(transactionIds);
-        genesis.setMerkleRoot(Utility.constructMerkelTree(new ArrayList<>(transactionIds)));
+        genesis.setMerkleRoot(Utility.constructMerkleTree(new ArrayList<>(transactionIds)));
         genesis.setNumTx(transactionIds.size());
         log.info("Hash of genesis block ==> {}", genesis.calculateHash());
         log.info("mining the genesis block...");
