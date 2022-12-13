@@ -18,16 +18,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+// IMP links
+// http://javadox.com/org.rocksdb/rocksdbjni/5.15.10/org/rocksdb/RocksDB.html
+
 @Slf4j
 @Repository
 public class RocksDBRepositoryImpl implements KeyValueRepository<String, String> {
     private final static String DB_NAME_BLOCKCHAIN = "Blockchain"; // Block-Hash ==> block path
     private final static String DB_NAME_TRANSACTIONS = "Transactions"; // Transaction-Hash ==> Transaction Data
-    private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool"; //   "            "
+    /**
+     * Transaction Data: <Transaction.class>
+     */
+    private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool"; // Transaction-Hash ==> Transaction Data
+    /**
+     * Transaction Data: <Transaction.class>
+     */
     private final static String DB_NAME_NODES = "Nodes"; // Wallet Address ==> IP Address
-    private final static String DB_NAME_WALLETS = "Wallets"; // Wallet-Name ==> "PubKey PrvKey ..."
+    private final static String DB_NAME_WALLETS = "Wallets"; // Wallet-Name ==> "PubKey PrvKey hash-160 dodo-coin-address"
     private final static String DB_NAME_ACCOUNT = "Accounts"; // Wallet Address ==> "TransactionId1,VOUT TransactionId2,VOUT ..."
-    private final static String LOCATION_TO_STORE_DB; // set the location as you like
+    private final static String LOCATION_TO_STORE_DB;
 
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
     private static final String FOLDER_TO_STORE_DB = "RocksDB";

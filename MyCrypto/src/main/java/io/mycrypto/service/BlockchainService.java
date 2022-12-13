@@ -3,7 +3,9 @@ package io.mycrypto.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import io.mycrypto.dto.SimplifiedWalletInfoDto;
 import io.mycrypto.dto.WalletInfoDto;
+import io.mycrypto.dto.WalletListDto;
 import io.mycrypto.dto.WalletUTXODto;
 import io.mycrypto.entity.Block;
 import io.mycrypto.entity.Output;
@@ -11,6 +13,8 @@ import io.mycrypto.entity.Transaction;
 import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
 import org.bitcoinj.core.Base58;
 import org.json.simple.JSONObject;
@@ -18,6 +22,8 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -152,6 +158,14 @@ public class BlockchainService {
         rocksDB.save(address, (existingTransactions.equals("EMPTY") ? "" : existingTransactions + " ") + txId + "," + vout, "Accounts");
     }
 
+    /**
+     *
+     * @param hash
+     * @return JSONObject
+     * @throws NullPointerException
+     * @throws IOException
+     * @throws ParseException
+     */
     JSONObject fetchBlockContent(String hash) throws NullPointerException, IOException, ParseException {
         String path = rocksDB.find(hash, "Blockchain");
         log.debug("File PATH for {} ==> {}", hash, path);
@@ -172,6 +186,13 @@ public class BlockchainService {
         return response;
     }
 
+    /**
+     *
+     * @param height
+     * @return JSONObject
+     * @throws FileNotFoundException
+     * @throws ParseException
+     */
     JSONObject fetchBlockContentByHeight(int height) throws FileNotFoundException, ParseException {
         DataInputStream in = new DataInputStream(new FileInputStream(BLOCKCHAIN_STORAGE_PATH + "blk" + String.format("%010d", height + 1) + ".dat"));
         boolean eof = false;
@@ -186,6 +207,62 @@ public class BlockchainService {
         }
         log.info("File content in HEX ==> {}", result);
         return (JSONObject) new JSONParser().parse(new String(Base64.getDecoder().decode(result.substring(MAGIC_BYTES.length()))));
+    }
+
+    /**
+     *
+     * @return WalletListDto
+     */
+    WalletListDto fetchWallets() {
+        // fetching All Wallet-Info from "Wallets" DB from which we obtain WalletName and Address
+        // Using which we calculate the balance in each Wallet from "Accounts" DB for the corresponding Wallet
+
+        // fetch list of wallet info to obtain all WalletNames and Addresses
+        Map<String, String> info = rocksDB.getList("Wallets");
+
+        if (info == null) {
+            log.error("No content found in Wallets DB, Looks like you haven't created a wallet yet...");
+            throw new RuntimeException();
+        }
+
+        List<SimplifiedWalletInfoDto> response = new ArrayList<>();
+
+        for (Map.Entry<String, String> i : info.entrySet()) {
+            // convert from JSON-string to WalletInfoDto to get <Address>
+            WalletInfoDto temp = null;
+            try {
+                temp = new ObjectMapper().readValue(i.getValue(), WalletInfoDto.class);
+            } catch (JsonProcessingException e) {
+                log.error("Error occurred while trying to parse data from Wallets DB to that of type <WalletInfoDto>...");
+                e.printStackTrace();
+                throw new RuntimeException(e);
+            }
+
+            BigDecimal balance = new BigDecimal("0");
+
+            // get balance from "Accounts" DB
+            String transactionDetails = rocksDB.find(temp.getAddress(), "Accounts");
+            List<WalletUTXODto> UTXOs = null;
+            if (!transactionDetails.equals("EMPTY")) {
+                try {
+                    UTXOs = retrieveUTXOFromWallet(transactionDetails.split("\s"));
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            if (!CollectionUtils.isEmpty(UTXOs))
+                for (WalletUTXODto utxo : UTXOs)
+                    balance = balance.add(utxo.getAmount());
+
+            // construct response
+            response.add(SimplifiedWalletInfoDto.builder()
+                    .walletName(i.getKey())
+                    .address(temp.getAddress())
+                    .balance(balance)
+                    .build());
+        }
+
+        return WalletListDto.builder().wallets(response).build();
     }
 
     boolean verifyAddress(String address, String hash160) {

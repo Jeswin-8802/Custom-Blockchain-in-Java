@@ -43,7 +43,7 @@ public final class Utility {
     }
 
     public static String osAppender() {
-        return SystemUtils.IS_OS_LINUX ? "/" : "\\";
+        return SystemUtils.IS_OS_LINUX || SystemUtils.IS_OS_MAC ? "/" : "\\";
     }
 
     // sha-384 hashing function

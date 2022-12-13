@@ -89,13 +89,17 @@ public class ResponseService {
         return constructWalletResponseFromInfo(value);
     }
 
+    public ResponseEntity<Object> fetchAllWallets() {
+        return ResponseEntity.ok(service.fetchWallets());
+    }
+
     public ResponseEntity<Object> delete(String key, String db) {
         if (!rocksDB.delete(key, db))
             return ResponseEntity.badRequest().build();
         return ResponseEntity.ok().build();
     }
 
-    public ResponseEntity<Object> createGenesisBlock() {
+    public ResponseEntity<Object> createGenesisBlock(String walletName) {
 
         File base = new File(BLOCKCHAIN_STORAGE_PATH);
         if (base.isDirectory())
@@ -125,9 +129,9 @@ public class ResponseService {
         genesis.setHeight(0);
 
         // fetching wallet info to get dodo-coin address
-        WalletInfoDto info = null;
+        WalletInfoDto info;
         try {
-            info = new ObjectMapper().readValue(rocksDB.find("default", "Wallets"), WalletInfoDto.class);
+            info = new ObjectMapper().readValue(rocksDB.find(Strings.isEmpty(walletName) ? "default" : walletName, "Wallets"), WalletInfoDto.class);
         } catch (JsonProcessingException | IllegalArgumentException e) {
             log.error("Wallet >> default << NOT FOUND...");
             e.printStackTrace();

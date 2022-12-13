@@ -49,8 +49,8 @@ public class BlockchainController {
     }
 
     @GetMapping("create-genesis-block")    // be careful with his API, must be used only once by the admin
-    public ResponseEntity<Object> createGenesisBlock() {
-        return service.createGenesisBlock();
+    public ResponseEntity<Object> createGenesisBlock(@RequestParam(name = "wallet-name") String walletName) {
+        return service.createGenesisBlock(walletName);
     }
 
     @PostMapping("check-address-validity")
@@ -61,6 +61,11 @@ public class BlockchainController {
     @GetMapping("fetch-utxos")
     public ResponseEntity<Object> fetchUTXOs(@RequestParam(name = "dodo-coin-address") String address) {
         return service.fetchUTXOs(address);
+    }
+
+    @GetMapping("fetch-all-wallets")
+    public ResponseEntity<Object> fetchWallets() {
+        return service.fetchAllWallets();
     }
 
     @GetMapping("make-transaction")
