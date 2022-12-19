@@ -25,28 +25,23 @@ import java.util.Map;
 @Repository
 public class RocksDBRepositoryImpl implements KeyValueRepository<String, String> {
     private final static String DB_NAME_BLOCKCHAIN = "Blockchain"; // Block-Hash ==> block path
-    private final static String DB_NAME_TRANSACTIONS = "Transactions"; // Transaction-Hash ==> Transaction Data
-    /**
-     * Transaction Data: <Transaction.class>
-     */
-    private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool"; // Transaction-Hash ==> Transaction Data
-    /**
-     * Transaction Data: <Transaction.class>
-     */
+    private final static String DB_NAME_TRANSACTIONS = "Transactions"; // Transaction-Hash ==> Transaction Data (as JSON)
+    private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool"; // Transaction-Hash ==> Transaction Data (as JSON)
     private final static String DB_NAME_NODES = "Nodes"; // Wallet Address ==> IP Address
     private final static String DB_NAME_WALLETS = "Wallets"; // Wallet-Name ==> "PubKey PrvKey hash-160 dodo-coin-address"
     private final static String DB_NAME_ACCOUNT = "Accounts"; // Wallet Address ==> "TransactionId1,VOUT TransactionId2,VOUT ..."
-    private final static String LOCATION_TO_STORE_DB;
 
+    // --------------------------------------------------------------
+    private final static String LOCATION_TO_STORE_DB;
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
     private static final String FOLDER_TO_STORE_DB = "RocksDB";
-
     static {
         LOCATION_TO_STORE_DB = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_DB + Utility.osAppender();
     }
+    // --------------------------------------------------------------
 
     RocksDB dbBlockchain, dbTransactions, dbTransactionsPool, dbNodes, dbWallets, dbAccount;
-    // DB will be stored under: /LOCATION_TO_BE_STORED/DB_NAME
+    // DB will be stored under: /LOCATION_TO_STORE_DB/DB_NAME
 
     @PostConstruct
     void initialize() {

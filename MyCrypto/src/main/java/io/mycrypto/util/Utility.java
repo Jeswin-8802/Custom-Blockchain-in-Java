@@ -10,6 +10,9 @@ import org.bitcoinj.core.Base58;
 import org.bitcoinj.core.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.apache.commons.lang3.SystemUtils;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 
 import java.io.*;
@@ -231,6 +234,19 @@ public final class Utility {
             size /= 2;
         }
         return transactionIds.get(0);
+    }
+
+    public static JSONObject constructJsonResponse(String key, String message) {
+        try {
+            return (JSONObject) new JSONParser().parse(String.format("""
+                    {
+                        "%s": "%s"
+                    }
+                    """, key, message));
+        } catch (ParseException ignore) {
+            // ignore
+        }
+        return null;
     }
 
     public static List<String> listFilesInDirectory(String path) {
