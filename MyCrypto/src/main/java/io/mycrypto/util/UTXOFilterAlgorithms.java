@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 
 @Slf4j
 public class UTXOFilterAlgorithms {
@@ -127,10 +128,10 @@ public class UTXOFilterAlgorithms {
 
         BigDecimal total = new BigDecimal(0);
         for (UTXODto utxo: allUTXOs) {
-            if (total.add(utxo.getAmount()).compareTo(amount) >= 0)
-                break;
             total = total.add(utxo.getAmount());
             filteredUTXOs.add(utxo);
+            if (total.add(utxo.getAmount()).compareTo(amount) >= 0)
+                break;
         }
 
         return filteredUTXOs;
@@ -138,4 +139,23 @@ public class UTXOFilterAlgorithms {
 
     // ------------RANDOMIZED----------------------------------------------------------------------------------------------------------------
 
+    public static List<UTXODto> selectRandomizedUTXOs(List<UTXODto> allUTXOs, BigDecimal amount) {
+        List<Integer> selectedIndexes = new ArrayList<>();
+        BigDecimal total = new BigDecimal(0);
+        Random rand = new Random();
+
+        while (total.compareTo(amount) < 0) {
+            int randomPosition = rand.nextInt(allUTXOs.size());
+            if (!selectedIndexes.contains(randomPosition)) {
+                selectedIndexes.add(randomPosition);
+                total = total.add(allUTXOs.get(randomPosition).getAmount());
+            }
+        }
+
+        List<UTXODto> result = new ArrayList<>();
+        for (int i: selectedIndexes)
+            result.add(allUTXOs.get(i));
+
+        return result;
+    }
 }

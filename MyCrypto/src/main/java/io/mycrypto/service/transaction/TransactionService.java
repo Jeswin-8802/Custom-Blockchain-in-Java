@@ -192,6 +192,9 @@ public class TransactionService {
     }
 
     public List<UTXODto> selectivelyFetchUTXOs(String amount, String algorithm, String walletName) throws MyCustomException {
+        if (new BigDecimal(amount).equals(new BigDecimal(0)))
+            throw new MyCustomException("Amount to start a transaction must be greater than 0");
+
         // fetching Wallet Info for given wallet name
         String info = rocksDB.find(walletName, "Wallets");
         if (Strings.isEmpty(info))
@@ -246,7 +249,7 @@ public class TransactionService {
                 filteredUTXOs = UTXOFilterAlgorithms.selectUTXOsInSortedOrder(allUTXOs, new BigDecimal(amount), Boolean.FALSE);
             }
             case RANDOM -> {
-
+                filteredUTXOs = UTXOFilterAlgorithms.selectRandomizedUTXOs(allUTXOs, new BigDecimal(amount));
             }
         }
 
