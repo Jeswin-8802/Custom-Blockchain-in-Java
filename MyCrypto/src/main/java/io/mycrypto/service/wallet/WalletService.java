@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mycrypto.dto.SimplifiedWalletInfoDto;
 import io.mycrypto.dto.WalletInfoDto;
 import io.mycrypto.dto.WalletListDto;
-import io.mycrypto.dto.WalletUTXODto;
+import io.mycrypto.dto.UTXODto;
 import io.mycrypto.exception.MyCustomException;
 import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.service.transaction.TransactionService;
@@ -60,16 +60,16 @@ public class WalletService {
 
             // get balance from "Accounts" DB
             String transactionDetails = rocksDB.find(temp.getAddress(), "Accounts");
-            List<WalletUTXODto> UTXOs = null;
+            List<UTXODto> UTXOs = null;
             if (!transactionDetails.equals("EMPTY")) {
                 try {
-                    UTXOs = transactionService.retrieveUTXOFromWallet(transactionDetails.split(" "));
+                    UTXOs = transactionService.retrieveAllUTXOs(transactionDetails.split(" "));
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }
             }
             if (!CollectionUtils.isEmpty(UTXOs))
-                for (WalletUTXODto utxo : UTXOs)
+                for (UTXODto utxo : UTXOs)
                     balance = balance.add(utxo.getAmount());
 
             // construct response

@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 
 @Data
 @Builder
-public class WalletUTXODto {
+public class UTXODto {
     @JsonProperty("transaction-id")
     String transactionId;
     @JsonProperty("vout")

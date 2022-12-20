@@ -119,6 +119,21 @@ public class BlockchainController {
         return service.fetchUTXOs(address);
     }
 
+    /**
+     * Select UTXOs for a transaction that adds up to a given amount by most efficient algorithm to the least efficient algorithm;
+     * <i> The options for the different types of algorithms are further described in the function used in the service layer </i>;
+     * <b> Note: This endpoint is only to view the available UTXOs to make the said transaction and does not make the transaction </b>
+     *
+     * @param amount The amount you need to transact
+     * @param algorithm The type of algorithm to use (allowed options: "most efficient", "largest closest", "smallest closest")
+     * @param walletName The name of the wallet from which we want to make the transaction
+     * @return HTTP response
+     */
+    @GetMapping("optimized-utxo-fetch")
+    public ResponseEntity<Object> fetchUTXOsForTransaction(@RequestParam("amount") String amount, @RequestParam("algorithm") String algorithm, @RequestParam("wallet-name") String walletName) {
+        return service.fetchUTXOsForTransaction(amount, algorithm, walletName);
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
 
     /**

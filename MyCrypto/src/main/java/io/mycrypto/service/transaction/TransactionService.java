@@ -4,13 +4,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.mycrypto.dto.WalletInfoDto;
-import io.mycrypto.dto.WalletUTXODto;
+import io.mycrypto.dto.UTXODto;
 import io.mycrypto.entity.Output;
 import io.mycrypto.entity.ScriptPublicKey;
 import io.mycrypto.entity.Transaction;
 import io.mycrypto.exception.MyCustomException;
 import io.mycrypto.repository.KeyValueRepository;
+import io.mycrypto.util.UTXOFilterAlgorithms;
+import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -27,9 +30,29 @@ import java.util.Map;
 @Slf4j
 @Service
 public class TransactionService {
-    private static final String BLOCK_REWARD = "13.0";
     @Autowired
     KeyValueRepository<String, String> rocksDB;
+
+    private static final String BLOCK_REWARD = "13.0";
+
+    // AVAILABLE ALGORITHMS --------------------------------------
+
+    // refer : https://www.baeldung.com/cs/subset-of-numbers-closest-to-target
+    private static final String OPTIMIZED = "OPTIMIZED"; // Meet In the Middle Approach; Selects the UTXOs whose sum closest represents a target amount
+
+    private static final String HIGHEST_SORTED = "HIGHEST_SORTED"; // trivial
+
+    private static final String LOWEST_SORTED = "LOWEST_SORTED"; // trivial
+
+    private static final String RANDOM = "RANDOM"; // trivial
+
+    private static final List<String> ALLOWED_ALGORITHMS;
+
+    static {
+        ALLOWED_ALGORITHMS = List.of(OPTIMIZED, HIGHEST_SORTED, LOWEST_SORTED, RANDOM);
+    }
+
+    // -----------------------------------------------------------
 
     /**
      * Fetches transaction by its ID
@@ -121,8 +144,8 @@ public class TransactionService {
      * @return A list of UTXOs liked to a given Wallet
      * @throws JsonProcessingException
      */
-    public List<WalletUTXODto> retrieveUTXOFromWallet(String[] transactions) throws JsonProcessingException {
-        List<WalletUTXODto> result = new ArrayList<>();
+    public List<UTXODto> retrieveAllUTXOs(String[] transactions) throws JsonProcessingException {
+        List<UTXODto> result = new ArrayList<>();
         for (String s : transactions) {
             String[] temp = s.split(",");
             String transaction = rocksDB.find(temp[0], "Transactions");
@@ -131,7 +154,7 @@ public class TransactionService {
                 return null;
             }
             BigDecimal amount = new ObjectMapper().readValue(transaction, Transaction.class).getOutputs().get(Integer.parseInt(temp[1])).getAmount();
-            result.add(WalletUTXODto.builder()
+            result.add(UTXODto.builder()
                     .transactionId(temp[0])
                     .vout(Long.parseLong(temp[1]))
                     .amount(amount)
@@ -166,5 +189,67 @@ public class TransactionService {
             throw new MyCustomException("unable to save coinbase transaction to DataBase...");
 
         return coinbase;
+    }
+
+    public List<UTXODto> selectivelyFetchUTXOs(String amount, String algorithm, String walletName) throws MyCustomException {
+        // fetching Wallet Info for given wallet name
+        String info = rocksDB.find(walletName, "Wallets");
+        if (Strings.isEmpty(info))
+            throw new MyCustomException(String.format("No wallet found with the name: %s", walletName));
+
+        WalletInfoDto walletInfo;
+        try {
+            walletInfo = new ObjectMapper().readValue(info, WalletInfoDto.class);
+        } catch (JsonProcessingException e) {
+            log.error("Error while parsing wallet info in DB to <WalletInfoDto>");
+            e.printStackTrace();
+            throw new MyCustomException("Error while parsing wallet info in DB to <WalletInfoDto>");
+        }
+
+        // transaction data for given wallet
+        info = rocksDB.find(walletInfo.getAddress(), "Accounts");
+        if (Strings.isEmpty(info))
+            throw new MyCustomException(String.format("No transaction data found in wallet: %s", walletName));
+        String[] transactions = info.split(" ");
+
+        List<UTXODto> allUTXOs;
+        try {
+            allUTXOs = retrieveAllUTXOs(transactions);
+        } catch(JsonProcessingException e) {
+            log.error("Error while parsing transaction info in DB to <Transaction.class>");
+            e.printStackTrace();
+            throw new MyCustomException("Error while parsing transaction info in DB to <Transaction.class>");
+        }
+
+        // checking for allowed algorithms
+        if (!ALLOWED_ALGORITHMS.contains(algorithm))
+            throw new MyCustomException(String.format("Algorithm %s not present in ALLOWED_LIST of algorithms...", algorithm));
+
+        // checking for if the wallet contains enough balance to transact the given amount
+        BigDecimal total = new BigDecimal(0);
+        for (UTXODto utxo: allUTXOs)
+            total.add(utxo.getAmount());
+        if (total.compareTo(new BigDecimal(amount)) < 0)
+            throw new MyCustomException(String.format("Not enough balance to make up an amount >= %s; current balance: %s", amount, total));
+        if (allUTXOs.size() == 1)
+            return allUTXOs;
+
+        List<UTXODto> filteredUTXOs = null;
+        switch (algorithm) {
+            case OPTIMIZED -> {
+                filteredUTXOs = UTXOFilterAlgorithms.meetInTheMiddleSelectionAlgorithm(allUTXOs, new BigDecimal(amount));
+            }
+            case HIGHEST_SORTED -> {
+                filteredUTXOs = UTXOFilterAlgorithms.selectUTXOsInSortedOrder(allUTXOs, new BigDecimal(amount), Boolean.TRUE);
+            }
+            case LOWEST_SORTED -> {
+                filteredUTXOs = UTXOFilterAlgorithms.selectUTXOsInSortedOrder(allUTXOs, new BigDecimal(amount), Boolean.FALSE);
+            }
+            case RANDOM -> {
+
+            }
+        }
+
+        return filteredUTXOs;
     }
 }

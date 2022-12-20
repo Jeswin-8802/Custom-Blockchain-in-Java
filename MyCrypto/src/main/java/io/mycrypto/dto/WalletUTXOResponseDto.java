@@ -11,7 +11,7 @@ import java.util.List;
 @Builder
 public class WalletUTXOResponseDto {
     @JsonProperty("UTXO")
-    List<WalletUTXODto> UTXOs;
+    List<UTXODto> UTXOs;
     @JsonProperty("dodo-coin-balance")
     BigDecimal total;
 }

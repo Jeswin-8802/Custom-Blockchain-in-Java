@@ -26,7 +26,7 @@ import java.util.Objects;
 
 
 @Slf4j
-public final class Utility {
+public class Utility {
     private static final String PUBLIC_KEY_NAME = "myPublicKey";
     private static final String PRIVATE_KEY_NAME = "myPrivateKey";
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";

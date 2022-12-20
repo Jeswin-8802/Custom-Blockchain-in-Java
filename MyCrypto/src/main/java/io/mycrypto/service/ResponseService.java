@@ -31,7 +31,6 @@ import java.util.List;
 @Service
 @Slf4j
 public class ResponseService {
-    private static final String BLOCK_REWARD = "13.0";
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
     private static final String FOLDER_TO_STORE_BLOCKS = "blockchain";
     private static final String BLOCKCHAIN_STORAGE_PATH;
@@ -202,9 +201,9 @@ public class ResponseService {
             response.setBalance(new BigDecimal("0.0"));
         else {
             BigDecimal sum = new BigDecimal("0.0");
-            List<WalletUTXODto> UTXOs;
+            List<UTXODto> UTXOs;
             try {
-                UTXOs = transactionService.retrieveUTXOFromWallet(transactions.split(" "));
+                UTXOs = transactionService.retrieveAllUTXOs(transactions.split(" "));
             } catch (JsonProcessingException e) {
                 log.error("Error while parsing data in Transaction DB to an object of class <Transaction>");
                 e.printStackTrace();
@@ -213,7 +212,7 @@ public class ResponseService {
 
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
-            for (WalletUTXODto utxo : UTXOs)
+            for (UTXODto utxo : UTXOs)
                 sum = sum.add(utxo.getAmount());
             response.setBalance(sum);
             try {
@@ -278,7 +277,7 @@ public class ResponseService {
      */
     public ResponseEntity<Object> fetchUTXOs(String address) {
         BigDecimal sum = new BigDecimal("0.0");
-        List<WalletUTXODto> UTXOs;
+        List<UTXODto> UTXOs;
         WalletUTXOResponseDto response;
         try {
             String transactions = rocksDB.find(address, "Accounts");
@@ -288,10 +287,10 @@ public class ResponseService {
                 return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", String.format("No transaction(s) found with address: %s", address)));
             }
 
-            UTXOs = transactionService.retrieveUTXOFromWallet(transactions.split(" "));
+            UTXOs = transactionService.retrieveAllUTXOs(transactions.split(" "));
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
-            for (WalletUTXODto utxo : UTXOs)
+            for (UTXODto utxo : UTXOs)
                 sum = sum.add(utxo.getAmount());
             response = WalletUTXOResponseDto.builder()
                     .UTXOs(UTXOs)
@@ -304,6 +303,22 @@ public class ResponseService {
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't parse WalletUTXOsResponseDto to JSON..."));
         }
         return ResponseEntity.ok(response);
+    }
+
+    public ResponseEntity<Object> fetchUTXOsForTransaction(String amount, String algorithm, String walletName) {
+        List<UTXODto> UTXOs = null;
+        try {
+            UTXOs = transactionService.selectivelyFetchUTXOs(amount, algorithm, walletName);
+        } catch (MyCustomException e) {
+            return ResponseEntity.badRequest().body(e.getErrorMessage());
+        }
+        BigDecimal total = new BigDecimal(0);
+        for (UTXODto utxo : UTXOs)
+            total = total.add(utxo.getAmount());
+        return ResponseEntity.ok(WalletUTXOResponseDto.builder()
+                .UTXOs(UTXOs)
+                .total(total)
+                .build());
     }
 
     // ----------------------------------------------------------------------------------------------------------------------------------
