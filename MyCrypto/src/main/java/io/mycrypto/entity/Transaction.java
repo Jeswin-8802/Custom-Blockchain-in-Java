@@ -49,7 +49,7 @@ public class Transaction {
      * Instantiate Transaction
      *
      * @param from From Dodo-Coin-Address
-     * @param to To Dodo-Coin-Address
+     * @param to   To Dodo-Coin-Address
      */
     public Transaction(String from, String to) {
         this.timeStamp = new Date().getTime();

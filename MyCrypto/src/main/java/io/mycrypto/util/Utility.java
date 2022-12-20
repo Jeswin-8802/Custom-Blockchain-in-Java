@@ -9,24 +9,20 @@ import org.apache.logging.log4j.util.Strings;
 import org.bitcoinj.core.Base58;
 import org.bitcoinj.core.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.apache.commons.lang3.SystemUtils;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
-
 import java.io.*;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPoint;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Objects;
 
 
 @Slf4j
@@ -121,7 +117,6 @@ public final class Utility {
             String publicKeyString = "-----BEGIN PUBLIC KEY-----" + "\n" +
                     Base64.getMimeEncoder().encodeToString(publicKey.getEncoded()) + "\n" +
                     "-----END PUBLIC KEY-----";
-            ;
 
             log.info(PUBLIC_KEY_NAME + ".pem ==> \n" + publicKeyString + "\n");
 

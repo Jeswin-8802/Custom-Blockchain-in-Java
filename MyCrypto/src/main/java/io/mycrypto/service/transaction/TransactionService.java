@@ -10,13 +10,11 @@ import io.mycrypto.entity.ScriptPublicKey;
 import io.mycrypto.entity.Transaction;
 import io.mycrypto.exception.MyCustomException;
 import io.mycrypto.repository.KeyValueRepository;
-import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -29,10 +27,9 @@ import java.util.Map;
 @Slf4j
 @Service
 public class TransactionService {
+    private static final String BLOCK_REWARD = "13.0";
     @Autowired
     KeyValueRepository<String, String> rocksDB;
-
-    private static final String BLOCK_REWARD = "13.0";
 
     /**
      * Fetches transaction by its ID
@@ -55,7 +52,6 @@ public class TransactionService {
     }
 
     /**
-     *
      * @param tx Transaction Object holding all the Transaction Information
      * @return True or False representing if the Transaction was saved successfully
      */
@@ -80,7 +76,7 @@ public class TransactionService {
         // get toAddress of Outputs and the subsequent VOUT
         Map<String, Long> map = new HashMap<>();
 
-        for (Output out: tx.getOutputs())
+        for (Output out : tx.getOutputs())
             map.put(out.getScriptPubKey().getAddress(), out.getN());
 
         // save transaction information to AccountsDB if transaction has your wallet address
@@ -111,8 +107,8 @@ public class TransactionService {
      * Adds transaction information to associated accounts into DB to keep track of UTXOs
      *
      * @param address Wallet Address
-     * @param txId Transaction ID
-     * @param vout The VOUT value for the Output in a Transaction
+     * @param txId    Transaction ID
+     * @param vout    The VOUT value for the Output in a Transaction
      */
     void addTransactionToAccounts(String address, String txId, long vout) {
         String existingTransactions = rocksDB.find(address, "Accounts");
@@ -121,7 +117,6 @@ public class TransactionService {
 
 
     /**
-     *
      * @param transactions A list of all (transactionId, VOUT) for a given wallet
      * @return A list of UTXOs liked to a given Wallet
      * @throws JsonProcessingException
@@ -135,7 +130,7 @@ public class TransactionService {
                 log.error("Could not find transaction {} obtained from Account DB in Transactions DB", temp[0]);
                 return null;
             }
-            BigDecimal amount =  new ObjectMapper().readValue(transaction, Transaction.class).getOutputs().get(Integer.parseInt(temp[1])).getAmount();
+            BigDecimal amount = new ObjectMapper().readValue(transaction, Transaction.class).getOutputs().get(Integer.parseInt(temp[1])).getAmount();
             result.add(WalletUTXODto.builder()
                     .transactionId(temp[0])
                     .vout(Long.parseLong(temp[1]))

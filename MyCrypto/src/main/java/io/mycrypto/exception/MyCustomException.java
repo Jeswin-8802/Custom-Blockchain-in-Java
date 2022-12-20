@@ -5,13 +5,14 @@ public class MyCustomException extends Exception {
 
     public MyCustomException(String msg) {
         super(msg);
-    }
-
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
+        this.errorMessage = msg;
     }
 
     public String getErrorMessage() {
         return errorMessage;
+    }
+
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
     }
 }

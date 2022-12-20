@@ -2,15 +2,14 @@ package io.mycrypto.service.wallet;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.mycrypto.dto.SimplifiedWalletInfoDto;
 import io.mycrypto.dto.WalletInfoDto;
 import io.mycrypto.dto.WalletListDto;
 import io.mycrypto.dto.WalletUTXODto;
+import io.mycrypto.exception.MyCustomException;
 import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.service.transaction.TransactionService;
 import io.mycrypto.util.Utility;
-
 import lombok.extern.slf4j.Slf4j;
 import org.bitcoinj.core.Base58;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,7 +91,7 @@ public class WalletService {
      * @param hash160 hash-160 of the private key associated with a wallet
      * @return Boolean
      */
-    public boolean verifyAddress(String address, String hash160) {
+    public boolean verifyAddress(String address, String hash160) throws MyCustomException {
         String inputs = """
                 {
                     "address": "%s",
@@ -113,7 +112,13 @@ public class WalletService {
         log.info("checksum from dodo-coin-address: {}", Utility.bytesToHex(checksumFromAddress));
 
         byte[] checksum = new byte[4];
-        System.arraycopy(Objects.requireNonNull(Utility.getHashSHA256(Utility.getHashSHA256(Utility.hexToBytes(hash160)))), 0, checksum, 0, 4);
+        try {
+            System.arraycopy(Objects.requireNonNull(Utility.getHashSHA256(Utility.getHashSHA256(Utility.hexToBytes(hash160)))), 0, checksum, 0, 4);
+        } catch (StringIndexOutOfBoundsException e) {
+            log.error("Invalid parameters passed; The length of address and or hash160 is invalid");
+            e.printStackTrace();
+            throw new MyCustomException("Invalid length for the address and or hash160");
+        }
         log.info("checksum from public-key: {}", Utility.bytesToHex(checksum));
 
         return Arrays.equals(checksumFromAddress, checksum) && hash160.equals(Utility.bytesToHex(hash160FromAddress));

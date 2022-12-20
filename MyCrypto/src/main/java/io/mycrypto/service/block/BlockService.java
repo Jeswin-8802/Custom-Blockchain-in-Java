@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.mycrypto.dto.WalletInfoDto;
 import io.mycrypto.entity.Block;
-import io.mycrypto.entity.Output;
-import io.mycrypto.entity.ScriptPublicKey;
 import io.mycrypto.entity.Transaction;
 import io.mycrypto.exception.MyCustomException;
 import io.mycrypto.repository.KeyValueRepository;
@@ -19,11 +17,9 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -32,23 +28,22 @@ import java.util.List;
 @Slf4j
 @Service
 public class BlockService {
-    @Autowired
-    KeyValueRepository<String, String> rocksDB;
-
-    @Autowired
-    TransactionService transactionService;
-
     private static final String MAGIC_BYTES = "f9beb4d9"; // help you spot when a new message starts when sending or receiving a continuous stream of data
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
     private static final String FOLDER_TO_STORE_BLOCKS = "blockchain";
     private static final String BLOCKCHAIN_STORAGE_PATH;
+
     static {
         BLOCKCHAIN_STORAGE_PATH = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_BLOCKS + Utility.osAppender();
     }
 
+    @Autowired
+    KeyValueRepository<String, String> rocksDB;
+    @Autowired
+    TransactionService transactionService;
+
     /**
-     *
-     * @param blk Block Info in the format <Block.class>
+     * @param blk           Block Info in the format <Block.class>
      * @param blockFileName The path on your system here the block is stored as a .dat file in hex
      * @return JSON String of the block info
      */
@@ -84,7 +79,6 @@ public class BlockService {
     }
 
     /**
-     *
      * @param hash
      * @return JSONObject
      * @throws NullPointerException
@@ -112,7 +106,6 @@ public class BlockService {
     }
 
     /**
-     *
      * @param height
      * @return JSONObject
      * @throws FileNotFoundException
@@ -140,13 +133,19 @@ public class BlockService {
         genesis.setHeight(0);
 
         // fetching wallet info to get dodo-coin address
-        WalletInfoDto info = null;
+        WalletInfoDto info;
         try {
-            info = new ObjectMapper().readValue(rocksDB.find(Strings.isEmpty(walletName) ? "default" : walletName, "Wallets"), WalletInfoDto.class);;
+            String walletInfo = rocksDB.find(Strings.isEmpty(walletName) ? "default" : walletName, "Wallets");
+            if (Strings.isEmpty(walletInfo))
+                throw new MyCustomException("Wallet not found");
+            info = new ObjectMapper().readValue(walletInfo, WalletInfoDto.class);
         } catch (JsonProcessingException | IllegalArgumentException e) {
             log.error("Wallet >> default << NOT FOUND...");
             e.printStackTrace();
             throw new MyCustomException("Could not find wallet to send block reward to. Please create a wallet called default");
+        } catch (MyCustomException e) {
+            log.error(e.getErrorMessage());
+            throw e;
         }
 
         // creating coinbase transaction

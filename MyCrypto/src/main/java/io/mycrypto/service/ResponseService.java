@@ -4,8 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mycrypto.dto.*;
 import io.mycrypto.entity.Block;
-import io.mycrypto.entity.Output;
-import io.mycrypto.entity.ScriptPublicKey;
 import io.mycrypto.entity.Transaction;
 import io.mycrypto.exception.MyCustomException;
 import io.mycrypto.repository.KeyValueRepository;
@@ -28,13 +26,20 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @Slf4j
 public class ResponseService {
     private static final String BLOCK_REWARD = "13.0";
+    private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
+    private static final String FOLDER_TO_STORE_BLOCKS = "blockchain";
+    private static final String BLOCKCHAIN_STORAGE_PATH;
+
+    static {
+        BLOCKCHAIN_STORAGE_PATH = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_BLOCKS + Utility.osAppender();
+    }
+
     @Autowired
     BlockService blockService;
     @Autowired
@@ -44,18 +49,10 @@ public class ResponseService {
     @Autowired
     KeyValueRepository<String, String> rocksDB;
 
-    private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
-    private static final String FOLDER_TO_STORE_BLOCKS = "blockchain";
-    private static final String BLOCKCHAIN_STORAGE_PATH;
-    static {
-        BLOCKCHAIN_STORAGE_PATH = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_BLOCKS + Utility.osAppender();
-    }
-
 
     // ---------BLOCKS--------------------------------------------------------------------------------------------------------------
 
     /**
-     *
      * @param hash The block hash that the block is referred to in the DB
      * @return Response Object
      */
@@ -78,7 +75,6 @@ public class ResponseService {
     }
 
     /**
-     *
      * @param height The block height; Represents the count of the block
      * @return Response Object
      */
@@ -143,12 +139,9 @@ public class ResponseService {
     }
 
 
-
-
     // ---------WALLET--------------------------------------------------------------------------------------------------------------
 
     /**
-     *
      * @param request Stores the Information required to create a new Wallet in a DTO
      * @return Response Object
      */
@@ -174,7 +167,6 @@ public class ResponseService {
     }
 
     /**
-     *
      * @param walletName Name of the Wallet
      * @return Response Object
      */
@@ -186,7 +178,6 @@ public class ResponseService {
     }
 
     /**
-     *
      * @param data This parameter stores the WalletInfo as a JSON string which will then be converted to a Response Object
      * @return Response Object
      */
@@ -222,7 +213,7 @@ public class ResponseService {
 
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
-            for (WalletUTXODto utxo: UTXOs)
+            for (WalletUTXODto utxo : UTXOs)
                 sum = sum.add(utxo.getAmount());
             response.setBalance(sum);
             try {
@@ -244,7 +235,6 @@ public class ResponseService {
     }
 
     /**
-     *
      * @return Response Object
      */
     public ResponseEntity<Object> fetchAllWallets() {
@@ -258,15 +248,18 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> constructResponseForValidateAddress(VerifyAddressRequestDto request) {
-        if (walletService.verifyAddress(request.getAddress(), request.getHash160()))
-            return ResponseEntity.ok(Utility.constructJsonResponse("msg", "valid"));
+        try {
+            if (walletService.verifyAddress(request.getAddress(), request.getHash160()))
+                return ResponseEntity.ok(Utility.constructJsonResponse("msg", "valid"));
+        } catch (MyCustomException e) {
+            return ResponseEntity.badRequest().body(e.getErrorMessage());
+        }
         return ResponseEntity.ok(Utility.constructJsonResponse("msg", "invalid"));
     }
 
     // ---------TRANSACTION--------------------------------------------------------------------------------------------------------------
 
     /**
-     *
      * @param id The Transaction ID
      * @return Response Object
      */
@@ -280,7 +273,6 @@ public class ResponseService {
     }
 
     /**
-     *
      * @param address Wallet Address where the UTXOs are stored
      * @return Response Object
      */
@@ -291,19 +283,19 @@ public class ResponseService {
         try {
             String transactions = rocksDB.find(address, "Accounts");
 
-            if(Strings.isEmpty(transactions)) {
+            if (Strings.isEmpty(transactions)) {
                 log.error(String.format("No transaction(s) found with address: %s", address));
-                return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", String.format("No transaction(s) found with address: %s", address)));
+                return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", String.format("No transaction(s) found with address: %s", address)));
             }
 
             UTXOs = transactionService.retrieveUTXOFromWallet(transactions.split(" "));
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
-            for (WalletUTXODto utxo: UTXOs)
+            for (WalletUTXODto utxo : UTXOs)
                 sum = sum.add(utxo.getAmount());
             response = WalletUTXOResponseDto.builder()
-                            .UTXOs(UTXOs)
-                            .total(sum)
+                    .UTXOs(UTXOs)
+                    .total(sum)
                     .build();
             log.info("UTXOs for address {} : \n{}", address, new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(response));
         } catch (JsonProcessingException e) {
@@ -320,7 +312,7 @@ public class ResponseService {
      * <b>Deletes</b> any value from any of the DBs available by its key
      *
      * @param key Can be any key that points to a specific value in a given DB
-     * @param db The Name of the DB
+     * @param db  The Name of the DB
      * @return Response Object
      */
     public ResponseEntity<Object> delete(String key, String db) {

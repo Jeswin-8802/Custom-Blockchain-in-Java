@@ -4,12 +4,9 @@ import io.mycrypto.dto.CreateWalletRequestDto;
 import io.mycrypto.dto.VerifyAddressRequestDto;
 import io.mycrypto.service.ResponseService;
 import lombok.extern.slf4j.Slf4j;
-import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.io.FileNotFoundException;
 
 @Slf4j
 @RestController
@@ -127,7 +124,7 @@ public class BlockchainController {
     /**
      * Deletes any value from the 6 DBs by its key
      *
-     * @param db Name of the DB; Must be the same as the allowed names of the 6 DBs; Refer the properties file
+     * @param db  Name of the DB; Must be the same as the allowed names of the 6 DBs; Refer the properties file
      * @param key RocksDB stores data in the form of key value pairs, therefore to get or delete you need ust the key
      * @return HTTP response
      */

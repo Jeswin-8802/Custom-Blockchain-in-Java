@@ -11,11 +11,9 @@ import org.springframework.stereotype.Repository;
 
 import javax.annotation.PostConstruct;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 // IMP links
@@ -35,6 +33,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     private final static String LOCATION_TO_STORE_DB;
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
     private static final String FOLDER_TO_STORE_DB = "RocksDB";
+
     static {
         LOCATION_TO_STORE_DB = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_DB + Utility.osAppender();
     }
