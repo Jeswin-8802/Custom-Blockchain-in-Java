@@ -123,9 +123,11 @@ public class BlockchainController {
      * <i> The options for the different types of algorithms are further described in the function used in the service layer </i>;
      * <b> Note: This endpoint is only to view the available UTXOs to make the said transaction and does not make the transaction </b>
      *
-     * @param amount     The amount you need to transact
-     * @param algorithm  The type of algorithm to use (allowed options: "most efficient", "largest closest", "smallest closest")
-     * @param walletName The name of the wallet from which we want to make the transaction
+     * @param amount         The amount you need to transact
+     * @param algorithm      The type of algorithm to use (allowed options: "most efficient", "largest closest", "smallest closest")
+     * @param walletName     The name of the wallet from which we want to make the transaction
+     * @param transactionFee The transaction fee that gets charged for the transaction;
+     *                       Can only be availed by a miner mining a block with said transaction
      * @return HTTP response
      */
     @GetMapping("optimized-utxo-fetch")
@@ -133,8 +135,14 @@ public class BlockchainController {
         return service.fetchUTXOsForTransaction(amount, algorithm, walletName, transactionFee);
     }
 
+    /**
+     * Performs a dodo-coin transaction
+     *
+     * @param requestDto Contains all the information for performing a transaction operation
+     * @return HTTP response
+     */
     @PostMapping("make-transaction")
-    public ResponseEntity<Object> maketransaction(@RequestBody MakeTransactionDto requestDto) {
+    public ResponseEntity<Object> makeTransaction(@RequestBody MakeTransactionDto requestDto) {
         return service.makeTransaction(requestDto);
     }
 

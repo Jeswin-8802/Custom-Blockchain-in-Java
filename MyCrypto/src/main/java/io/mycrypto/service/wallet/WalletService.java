@@ -12,6 +12,7 @@ import io.mycrypto.service.transaction.TransactionService;
 import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
 import org.bitcoinj.core.Base58;
+import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -37,14 +38,12 @@ public class WalletService {
     public WalletListDto fetchWallets() {
         // fetch list of wallet info to obtain all WalletNames and Addresses
         Map<String, String> info = rocksDB.getList("Wallets");
-
         if (info == null) {
             log.error("No content found in Wallets DB, Looks like you haven't created a wallet yet...");
             throw new RuntimeException();
         }
 
         List<SimplifiedWalletInfoDto> response = new ArrayList<>();
-
         for (Map.Entry<String, String> i : info.entrySet()) {
             // convert from JSON-string to WalletInfoDto to get <Address>
             WalletInfoDto temp = null;
@@ -63,7 +62,7 @@ public class WalletService {
             List<UTXODto> UTXOs = null;
             if (!transactionDetails.equals("EMPTY")) {
                 try {
-                    UTXOs = transactionService.retrieveAllUTXOs(transactionDetails.split(" "));
+                    UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactionDetails, JSONObject.class));
                 } catch (JsonProcessingException e) {
                     throw new RuntimeException(e);
                 }
@@ -79,7 +78,6 @@ public class WalletService {
                     .balance(balance)
                     .build());
         }
-
         return WalletListDto.builder().wallets(response).build();
     }
 

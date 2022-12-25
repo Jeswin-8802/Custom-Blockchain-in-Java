@@ -77,7 +77,23 @@ public class Utility {
         return null;
     }
 
+    public static byte[] hash160(byte[] input) {
+        return Utils.sha256hash160(input);
+    }
 
+    public static String bytesToHex(byte[] a) {
+        StringBuilder sb = new StringBuilder(a.length * 2);
+        for (byte b : a)
+            sb.append(String.format("%02x", b));
+        return sb.toString();
+    }
+
+    public static byte[] hexToBytes(String hex) {
+        byte[] bytes = new byte[hex.length() / 2];
+        for (int index = 0; index < hex.length(); index += 2)
+            bytes[index / 2] = (byte) Integer.parseInt(hex.substring(index, index + 2), 16);
+        return bytes;
+    }
 
     /*---- Private functions ----*/
 
@@ -199,24 +215,6 @@ public class Utility {
         byte[] hash160 = new byte[decoded.length - 5];
         System.arraycopy(decoded, 1, hash160, 0, decoded.length - 5);
         return bytesToHex(hash160);
-    }
-
-    public static String bytesToHex(byte[] a) {
-        StringBuilder sb = new StringBuilder(a.length * 2);
-        for (byte b : a)
-            sb.append(String.format("%02x", b));
-        return sb.toString();
-    }
-
-    public static byte[] hexToBytes(String hex) {
-        byte[] bytes = new byte[hex.length() / 2];
-        for (int index = 0; index < hex.length(); index += 2)
-            bytes[index / 2] = (byte) Integer.parseInt(hex.substring(index, index + 2), 16);
-        return bytes;
-    }
-
-    public static byte[] hash160(byte[] input) {
-        return Utils.sha256hash160(input);
     }
 
     public static byte[] compressPublicKey(ECPoint pt) {

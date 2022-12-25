@@ -59,7 +59,6 @@ public class TransactionService {
      *
      * @param id Transaction ID
      * @return Transaction Information in JSONObject format
-     * @throws NullPointerException
      */
     public JSONObject fetchTransaction(String id) throws NullPointerException {
         String json = rocksDB.find(id, "Transactions");
@@ -72,6 +71,39 @@ public class TransactionService {
             e.printStackTrace();
         }
         return null;
+    }
+
+    /**
+     * Creates a coinbase transaction
+     *
+     * @param info Holds Wallet Information
+     * @return Transaction Object containing information about the coinbase transaction
+     */
+    public Transaction constructCoinbaseTransaction(WalletInfoDto info) throws MyCustomException {
+        Transaction coinbase = new Transaction("", info.getAddress());
+        coinbase.setNumInputs(0);
+        coinbase.setInputs(new ArrayList<>());
+        coinbase.setNumOutputs(1);
+
+        // construct output
+
+        // construct Script Public Key (Locking Script)
+        ScriptPublicKey script = new ScriptPublicKey(info.getHash160(), info.getAddress());
+
+        Output output = new Output();
+        output.setAmount(new BigDecimal(BLOCK_REWARD));
+        output.setN(0L);
+        output.setScriptPubKey(script);
+
+        // set output
+        coinbase.setOutputs(List.of(output));
+        coinbase.setSpent(new BigDecimal("0.0")); // 0 as there are no inputs
+        coinbase.setMsg("The first and only transaction within the genesis block...");
+        coinbase.calculateHash(); // calculates and sets transactionId
+
+        saveTransaction(coinbase);
+
+        return coinbase;
     }
 
     /**
@@ -124,24 +156,37 @@ public class TransactionService {
      * @param txId    Transaction ID
      * @param vout    The VOUT value for the Output in a Transaction
      */
-    void addTransactionToAccounts(String address, String txId, long vout) {
+    void addTransactionToAccounts(String address, String txId, Long vout) throws MyCustomException {
         String existingTransactions = rocksDB.find(address, "Accounts");
-        rocksDB.save(address, (existingTransactions.equals("EMPTY") ? "" : existingTransactions + " ") + txId + "," + vout, "Accounts");
+
+        JSONObject transactions;
+        if (!existingTransactions.equals("EMPTY")) {
+            try {
+                transactions = new ObjectMapper().readValue(existingTransactions, JSONObject.class);
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+                throw new MyCustomException("Error while casting transaction UTXO data from Accounts DB to JSON Object...");
+            }
+        } else {
+            transactions = new JSONObject();
+        }
+        transactions.put(txId, vout.toString());
+        rocksDB.save(address, transactions.toJSONString(), "Accounts");
     }
 
 
     /**
+     * Retrieves all UTXOs linked to a WaLLet
+     *
      * @param transactions A list of all (transactionId, VOUT) for a given wallet
      * @return A list of UTXOs liked to a given Wallet
-     * @throws JsonProcessingException
      */
-    public List<UTXODto> retrieveAllUTXOs(String[] transactions) throws JsonProcessingException {
+    public List<UTXODto> retrieveAllUTXOs(JSONObject transactions) throws JsonProcessingException {
         List<UTXODto> result = new ArrayList<>();
-        for (String s : transactions) {
-            String[] temp = s.split(",");
-            String transaction = rocksDB.find(temp[0], "Transactions");
+        for (Object s : transactions.keySet()) {
+            String transaction = rocksDB.find((String) s, "Transactions");
             if (transaction == null) {
-                log.error("Could not find transaction {} obtained from Account DB in Transactions DB", temp[0]);
+                log.error("Could not find transaction {} obtained from Account DB in Transactions DB", s);
                 return null;
             }
 
@@ -150,15 +195,15 @@ public class TransactionService {
 
             // getting the vout
             for (Output output : outputs) {
-                if (output.getN() == Long.parseLong(temp[1])) {
+                if (output.getN() == Long.parseLong((String) transactions.get(s))) {
                     amount = output.getAmount();
                     break;
                 }
             }
 
             result.add(UTXODto.builder()
-                    .transactionId(temp[0])
-                    .vout(Long.parseLong(temp[1]))
+                    .transactionId((String) s)
+                    .vout(Long.parseLong((String) transactions.get(s)))
                     .amount(amount)
                     .build()
             );
@@ -166,33 +211,12 @@ public class TransactionService {
         return result;
     }
 
-    public Transaction constructCoinbaseTransaction(WalletInfoDto info) throws MyCustomException {
-        Transaction coinbase = new Transaction("", info.getAddress());
-        coinbase.setNumInputs(0);
-        coinbase.setInputs(new ArrayList<>());
-        coinbase.setNumOutputs(1);
-
-        // construct output
-
-        // construct Script Public Key (Locking Script)
-        ScriptPublicKey script = new ScriptPublicKey(info.getHash160(), info.getAddress());
-
-        Output output = new Output();
-        output.setAmount(new BigDecimal(BLOCK_REWARD));
-        output.setN(0L);
-        output.setScriptPubKey(script);
-
-        // set output
-        coinbase.setOutputs(List.of(output));
-        coinbase.setSpent(new BigDecimal("0.0")); // 0 as there are no inputs
-        coinbase.setMsg("The first and only transaction within the genesis block...");
-        coinbase.calculateHash(); // calculates and sets transactionId
-
-        saveTransaction(coinbase);
-
-        return coinbase;
-    }
-
+    /**
+     * Performs Transaction
+     *
+     * @param requestDto Holds all the information necessary for creating a transactiob
+     * @return Transaction object containing all the transaction information of the current transaction
+     */
     public Transaction makeTransaction(MakeTransactionDto requestDto) throws MyCustomException {
         WalletInfoDto fromInfo;
         try {
@@ -204,12 +228,20 @@ public class TransactionService {
 
         Transaction transaction = new Transaction(fromInfo.getAddress(), requestDto.getTo());
         List<UTXODto> utxos = selectivelyFetchUTXOs(requestDto.getAmount(), requestDto.getAlgorithm(), fromInfo.getAddress(), ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? NOMINAL_TRANSACTION_FEE : requestDto.getTransactionFee());
+        // Fetching UTXO information from AccountsDB
+        JSONObject transactionJSON;
+        try {
+            transactionJSON = new ObjectMapper().readValue(rocksDB.find(fromInfo.getAddress(), "Accounts"), JSONObject.class);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            throw new MyCustomException("Parse Error...");
+        }
 
         transaction.setNumInputs(utxos.size());
         List<Input> inputs = new ArrayList<>();
         for (UTXODto utxoDto : utxos) {
             // construct Script Sig
-            String signature = null;
+            String signature;
             try {
                 signature = Utility.getSignedData(fromInfo.getPrivateKey(), "abcd");
             } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException |
@@ -227,8 +259,16 @@ public class TransactionService {
             input.setScriptSig(scriptSig);
             input.setSize((long) scriptSig.getBytes().length);
 
+            // removing UTXO used for transaction from wallet
+            transactionJSON.remove(utxoDto.getTransactionId());
+
             inputs.add(input);
         }
+        // saving updated transaction UTXO information in Accounts DB
+        if (transactionJSON.isEmpty())
+            rocksDB.save(fromInfo.getAddress(), "EMPTY", "Accounts");
+        else
+            rocksDB.save(fromInfo.getAddress(), transactionJSON.toJSONString(), "Accounts");
         transaction.setInputs(inputs);
 
         // total UTXO available for transaction
@@ -265,31 +305,45 @@ public class TransactionService {
         return transaction;
     }
 
+    /**
+     * Selectively Fetches UTXOs from a wallet for a transaction based on a specific predetermined algorithm
+     *
+     * @param amount         Amount to transact
+     * @param algorithm      The algorithm used to select suitable UTXOs for the transaction;
+     *                       <i>Available options:   1 = <b>OPTIMAL</b>;
+     *                       2 = <b>HIGHEST_SORTED</b>;
+     *                       3 = <b>LOWEST_SORTED</b>;
+     *                       4 = <b>RANDOM</b></i>
+     * @param walletAddress  Points to the Wallet from which the UTXOs are to be selected
+     * @param transactionFee The transaction fee that will be charged for the transaction;
+     *                       This will be added to the amount when taking into consideration the selection of UTXOs for the transaction
+     * @return List of UTXOs selected for a particular transaction
+     */
     public List<UTXODto> selectivelyFetchUTXOs(BigDecimal amount, Integer algorithm, String walletAddress, BigDecimal transactionFee) throws MyCustomException {
         if (amount.equals(new BigDecimal(0)))
             throw new MyCustomException("Amount to start a transaction must be greater than 0");
 
         // transaction data for given wallet
-        String info = rocksDB.find(walletAddress, "Accounts");
-        if (info.equals("EMPTY"))
+        String transactions = rocksDB.find(walletAddress, "Accounts");
+        if (transactions.equals("EMPTY"))
             throw new MyCustomException(String.format("No transaction data found for wallet with address: %s", walletAddress));
-        String[] transactions = info.split(" ");
 
         List<UTXODto> allUTXOs;
         try {
-            allUTXOs = retrieveAllUTXOs(transactions);
+            allUTXOs = retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class));
         } catch (JsonProcessingException e) {
-            log.error("Error while parsing transaction info in DB to <Transaction.class>");
+            log.error("Error while parsing transaction info in DB to <Transaction.class> OR utxo info to JSON");
             e.printStackTrace();
-            throw new MyCustomException("Error while parsing transaction info in DB to <Transaction.class>");
+            throw new MyCustomException("Error while parsing transaction info in DB to <Transaction.class> OR utxo info to JSON");
         }
 
-        String alg = null;
+        String alg;
         switch (algorithm) {
             case 1 -> alg = OPTIMIZED;
             case 2 -> alg = HIGHEST_SORTED;
             case 3 -> alg = LOWEST_SORTED;
             case 4 -> alg = RANDOM;
+            default -> throw new MyCustomException("Invalid algorithm type passed");
         }
 
         // checking for allowed algorithms

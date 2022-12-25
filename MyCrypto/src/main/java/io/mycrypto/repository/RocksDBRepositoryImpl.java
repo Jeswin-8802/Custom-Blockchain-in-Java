@@ -29,7 +29,16 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool"; // Transaction-Hash ==> Transaction Data (as JSON)
     private final static String DB_NAME_NODES = "Nodes"; // Wallet Address ==> ("IP Address" if foreign | "Wallet Name" if owned)
     private final static String DB_NAME_WALLETS = "Wallets"; // Wallet-Name ==> "PubKey PrvKey hash-160 dodo-coin-address"
-    private final static String DB_NAME_ACCOUNT = "Accounts"; // Wallet Address ==> "TransactionId1,VOUT TransactionId2,VOUT ..."
+    private final static String DB_NAME_ACCOUNT = "Accounts"; // (as JSON) 👇
+    /* Wallet Address ==>
+    {
+        TransactionId1: VOUT,
+        TransactionId2: VOUT,
+        .
+        .
+        .
+    }
+     */
 
     // --------------------------------------------------------------
     private final static String LOCATION_TO_STORE_DB;

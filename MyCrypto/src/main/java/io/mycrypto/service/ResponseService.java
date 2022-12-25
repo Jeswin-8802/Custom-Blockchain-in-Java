@@ -13,6 +13,7 @@ import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SystemUtils;
 import org.apache.logging.log4j.util.Strings;
+import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -121,7 +122,7 @@ public class ResponseService {
         }
 
         try {
-            Block genesis = null;
+            Block genesis;
             try {
                 genesis = blockService.mineGenesisBlock(walletName);
             } catch (MyCustomException e) {
@@ -171,17 +172,6 @@ public class ResponseService {
     }
 
     /**
-     * @param walletName Name of the Wallet
-     * @return Response Object
-     */
-    public ResponseEntity<Object> fetchWalletInfo(String walletName) {
-        String value = rocksDB.find(walletName, "Wallets");
-        log.info("Name of wallet: {}", walletName);
-        if (value == null) return ResponseEntity.noContent().build();
-        return constructWalletResponseFromInfo(value);
-    }
-
-    /**
      * @param data This parameter stores the WalletInfo as a JSON string which will then be converted to a Response Object
      * @return Response Object
      */
@@ -205,10 +195,20 @@ public class ResponseService {
         if (transactions.equals("EMPTY"))
             response.setBalance(new BigDecimal("0.0"));
         else {
+            log.info(Utility.beautify(transactions));
+
+            JSONObject transactionsJSON;
+            try {
+                transactionsJSON = new ObjectMapper().readValue(transactions, JSONObject.class);
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+                return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Error while Parsing UTXO data from Accounts DB to JSON..."));
+            }
+
             BigDecimal sum = new BigDecimal("0.0");
             List<UTXODto> UTXOs;
             try {
-                UTXOs = transactionService.retrieveAllUTXOs(transactions.split(" "));
+                UTXOs = transactionService.retrieveAllUTXOs(transactionsJSON);
             } catch (JsonProcessingException e) {
                 log.error("Error while parsing data in Transaction DB to an object of class <Transaction>");
                 e.printStackTrace();
@@ -231,11 +231,20 @@ public class ResponseService {
                 e.printStackTrace();
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't parse WalletUTXOsResponseDto to JSON..."));
             }
-
         }
-
         response.setAddress(info.getAddress());
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * @param walletName Name of the Wallet
+     * @return Response Object
+     */
+    public ResponseEntity<Object> fetchWalletInfo(String walletName) {
+        String value = rocksDB.find(walletName, "Wallets");
+        log.info("Name of wallet: {}", walletName);
+        if (value == null) return ResponseEntity.noContent().build();
+        return constructWalletResponseFromInfo(value);
     }
 
     /**
@@ -292,7 +301,12 @@ public class ResponseService {
                 return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", String.format("No transaction(s) found with address: %s", address)));
             }
 
-            UTXOs = transactionService.retrieveAllUTXOs(transactions.split(" "));
+            try {
+                UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class));
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+                return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("err", "Error while casting UTXO info to JSONObject from AccountsDB..."));
+            }
             if (UTXOs == null)
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Transactions present in wallet not found in Transactions DB..."));
             for (UTXODto utxo : UTXOs)
@@ -310,6 +324,18 @@ public class ResponseService {
         return ResponseEntity.ok(response);
     }
 
+
+    /**
+     * This function gives a list of the possible UTXOs that gets selected from a particular wallet
+     * for a transaction i.e. The sum of amounts of the UTXOs must make up a value greater than or equal to
+     * the sum of the amount and the transaction fee
+     *
+     * @param amount         Amount to transact
+     * @param algorithm      The type of algorithm to use for filtering the UTXOs
+     * @param walletName     The name of the wallet from which the amount is to be withdrawn
+     * @param transactionFee The transaction fee that will be counted for the current transaction
+     * @return Response Object
+     */
     public ResponseEntity<Object> fetchUTXOsForTransaction(String amount, Integer algorithm, String walletName, String transactionFee) {
         // fetching Wallet Address
         WalletInfoDto walletInfo;
@@ -346,17 +372,25 @@ public class ResponseService {
                 .build());
     }
 
+    /**
+     * Returns the Transaction Information after it has been successfully completed;
+     * Also validates important parameters within the requestDto necessary for the transaction
+     *
+     * @param requestDto Contains all the information to perform a dodo-coin transaction
+     * @return Response Object
+     */
     public ResponseEntity<Object> makeTransaction(MakeTransactionDto requestDto) {
-        // validation
+        // validation for To Address
         if (Strings.isEmpty(requestDto.getTo())) {
             log.error("The field \"To\" cannot be empty");
             return ResponseEntity.badRequest().build();
         }
+        // validation for Amount
         if (ObjectUtils.isEmpty(requestDto.getAmount())) {
             log.error("The field \"amount\" cannot be empty");
             return ResponseEntity.badRequest().build();
         }
-
+        // Using the default Wallet if the From address is empty
         if (Strings.isEmpty(requestDto.getFrom())) {
             String defaultWalletInfo = rocksDB.find("default", "Wallets");
             if (Strings.isEmpty(defaultWalletInfo)) {
@@ -366,6 +400,7 @@ public class ResponseService {
             requestDto.setFrom(defaultWalletInfo);
         } else {
             String walletNameFromAddress = rocksDB.find(requestDto.getFrom(), "Nodes");
+            // validating from address
             if (Strings.isEmpty(walletNameFromAddress)) {
                 log.error(String.format("No wallet found with address %s", requestDto.getFrom()));
                 return ResponseEntity.badRequest().build();
