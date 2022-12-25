@@ -15,11 +15,11 @@ public class MyCustomException extends Exception {
         return errorMessage;
     }
 
-    public JSONObject getMessageAsJSONString() {
-        return Utility.constructJsonResponse("err", this.errorMessage);
-    }
-
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public JSONObject getMessageAsJSONString() {
+        return Utility.constructJsonResponse("err", this.errorMessage);
     }
 }

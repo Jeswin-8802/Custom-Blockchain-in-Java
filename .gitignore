@@ -64,5 +64,4 @@ mvnw.cmd
 *.pem
 target/
 
-RESOURCES/
 /RESOURCES/

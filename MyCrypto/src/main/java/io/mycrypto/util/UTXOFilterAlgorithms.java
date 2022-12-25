@@ -22,7 +22,7 @@ public class UTXOFilterAlgorithms {
      * refer : <a href="https://www.baeldung.com/cs/subset-of-numbers-closest-to-target">Subset of numbers closest to a target</a>
      *
      * @param allUTXOs all UTXOs associated with a wallet
-     * @param amount Amount to transact
+     * @param amount   Amount to transact
      * @return A list of Filtered UTXOs whose sum is greater than or equal to the amount
      */
     public static List<UTXODto> meetInTheMiddleSelectionAlgorithm(List<UTXODto> allUTXOs, BigDecimal amount) {
@@ -54,7 +54,7 @@ public class UTXOFilterAlgorithms {
                 .sum(new BigDecimal(Integer.MAX_VALUE))
                 .build();
 
-        for (StoreUtxoSumInfo utxoSumInfo: first) {
+        for (StoreUtxoSumInfo utxoSumInfo : first) {
             StoreUtxoSumInfo temp;
             if (utxoSumInfo.getSum().compareTo(amount) > 0)
                 temp = utxoSumInfo;
@@ -70,7 +70,7 @@ public class UTXOFilterAlgorithms {
 
         List<UTXODto> filteredUTXOs = new ArrayList<>();
         if (!CollectionUtils.isEmpty(result.getIndexes()))
-            for (int i: result.getIndexes())
+            for (int i : result.getIndexes())
                 filteredUTXOs.add(allUTXOs.get(i));
 
         return filteredUTXOs;
@@ -79,10 +79,10 @@ public class UTXOFilterAlgorithms {
     /**
      * generates all possible combinations of sums of UTXOs
      *
-     * @param utxos The Base List that contains all the UTXOs from the wallet
-     * @param i current pos
-     * @param end end position
-     * @param utxoSumInfo Stores the sum as well the indexes of the values that contribute to the sum
+     * @param utxos        The Base List that contains all the UTXOs from the wallet
+     * @param i            current pos
+     * @param end          end position
+     * @param utxoSumInfo  Stores the sum as well the indexes of the values that contribute to the sum
      * @param targetAmount The least amount the utxo subset must add up to
      * @return A list of All possible subset sum combinations stored as <StoreUtxoSumInfo.class>
      */
@@ -111,7 +111,7 @@ public class UTXOFilterAlgorithms {
      * Performs binary search on List of UTXO subset sum Info
      *
      * @param utxoInfoList list to search in
-     * @param key key to search
+     * @param key          key to search
      * @return UTXO subset sum Info with an amount closest to the key
      */
     public static StoreUtxoSumInfo binarySearchOnUtxoInfoList(List<StoreUtxoSumInfo> utxoInfoList, BigDecimal key) {
@@ -120,7 +120,7 @@ public class UTXOFilterAlgorithms {
         int high = utxoInfoList.size() - 1;
         int mid = 0;
         while (low <= high) {
-            mid = low  + ((high - low) / 2);
+            mid = low + ((high - low) / 2);
             int compareKey = key.compareTo(utxoInfoList.get(mid).getSum());
             if (compareKey == 0)
                 return utxoInfoList.get(mid);
@@ -152,7 +152,7 @@ public class UTXOFilterAlgorithms {
         List<UTXODto> filteredUTXOs = new ArrayList<>();
 
         BigDecimal total = new BigDecimal(0);
-        for (UTXODto utxo: allUTXOs) {
+        for (UTXODto utxo : allUTXOs) {
             total = total.add(utxo.getAmount());
             filteredUTXOs.add(utxo);
             if (total.compareTo(amount) >= 0)
@@ -178,7 +178,7 @@ public class UTXOFilterAlgorithms {
         }
 
         List<UTXODto> result = new ArrayList<>();
-        for (int i: selectedIndexes)
+        for (int i : selectedIndexes)
             result.add(allUTXOs.get(i));
 
         return result;

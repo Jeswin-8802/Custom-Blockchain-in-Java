@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import io.mycrypto.dto.MakeTransactionDto;
-import io.mycrypto.dto.WalletInfoDto;
 import io.mycrypto.dto.UTXODto;
+import io.mycrypto.dto.WalletInfoDto;
 import io.mycrypto.entity.Input;
 import io.mycrypto.entity.Output;
 import io.mycrypto.entity.ScriptPublicKey;
@@ -34,29 +34,23 @@ import java.util.*;
 @Slf4j
 @Service
 public class TransactionService {
-    @Autowired
-    KeyValueRepository<String, String> rocksDB;
-
     private static final String BLOCK_REWARD = "13.0";
-
     private static final BigDecimal NOMINAL_TRANSACTION_FEE = new BigDecimal("0.0001");
-
-    // AVAILABLE ALGORITHMS --------------------------------------
-
     // refer : https://www.baeldung.com/cs/subset-of-numbers-closest-to-target
     private static final String OPTIMIZED = "OPTIMIZED"; // Meet In the Middle Approach; Selects the UTXOs whose sum closest represents a target amount
 
+    // AVAILABLE ALGORITHMS --------------------------------------
     private static final String HIGHEST_SORTED = "HIGHEST_SORTED"; // trivial
-
     private static final String LOWEST_SORTED = "LOWEST_SORTED"; // trivial
-
     private static final String RANDOM = "RANDOM"; // trivial
-
     private static final List<String> ALLOWED_ALGORITHMS;
 
     static {
         ALLOWED_ALGORITHMS = List.of(OPTIMIZED, HIGHEST_SORTED, LOWEST_SORTED, RANDOM);
     }
+
+    @Autowired
+    KeyValueRepository<String, String> rocksDB;
 
     // -----------------------------------------------------------
 
@@ -116,7 +110,7 @@ public class TransactionService {
             throw new MyCustomException("No content found in Accounts DB...");
         }
 
-        for (Output out: tx.getOutputs()) {
+        for (Output out : tx.getOutputs()) {
             // If the output is mapped to an address that I own
             if (info.containsKey(out.getScriptPubKey().getAddress()))
                 addTransactionToAccounts(out.getScriptPubKey().getAddress(), tx.getTransactionId(), out.getN());
@@ -155,7 +149,7 @@ public class TransactionService {
             BigDecimal amount = null;
 
             // getting the vout
-            for (Output output: outputs) {
+            for (Output output : outputs) {
                 if (output.getN() == Long.parseLong(temp[1])) {
                     amount = output.getAmount();
                     break;
@@ -207,18 +201,19 @@ public class TransactionService {
             log.error("Error while parsing contents of wallet to WalletInfoDto.class...");
             throw new MyCustomException("Error while parsing contents of wallet to WalletInfoDto.class...");
         }
-        
+
         Transaction transaction = new Transaction(fromInfo.getAddress(), requestDto.getTo());
         List<UTXODto> utxos = selectivelyFetchUTXOs(requestDto.getAmount(), requestDto.getAlgorithm(), fromInfo.getAddress(), ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? NOMINAL_TRANSACTION_FEE : requestDto.getTransactionFee());
 
         transaction.setNumInputs(utxos.size());
         List<Input> inputs = new ArrayList<>();
-        for (UTXODto utxoDto: utxos) {
+        for (UTXODto utxoDto : utxos) {
             // construct Script Sig
             String signature = null;
             try {
                 signature = Utility.getSignedData(fromInfo.getPrivateKey(), "abcd");
-            } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException | UnsupportedEncodingException e) {
+            } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException |
+                     UnsupportedEncodingException e) {
                 e.printStackTrace();
                 throw new MyCustomException("Error Occurred while getting data signed...");
             }
@@ -238,7 +233,7 @@ public class TransactionService {
 
         // total UTXO available for transaction
         BigDecimal total = new BigDecimal(0);
-        for (UTXODto utxoDto: utxos)
+        for (UTXODto utxoDto : utxos)
             total = total.add(utxoDto.getAmount());
 
         // construct outputs
@@ -283,7 +278,7 @@ public class TransactionService {
         List<UTXODto> allUTXOs;
         try {
             allUTXOs = retrieveAllUTXOs(transactions);
-        } catch(JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             log.error("Error while parsing transaction info in DB to <Transaction.class>");
             e.printStackTrace();
             throw new MyCustomException("Error while parsing transaction info in DB to <Transaction.class>");
@@ -303,7 +298,7 @@ public class TransactionService {
 
         // checking for if the wallet contains enough balance to transact the given amount
         BigDecimal total = new BigDecimal(0);
-        for (UTXODto utxo: allUTXOs)
+        for (UTXODto utxo : allUTXOs)
             total = total.add(utxo.getAmount());
         // adding transaction fee
         total = total.add(transactionFee);
@@ -314,10 +309,14 @@ public class TransactionService {
 
         List<UTXODto> filteredUTXOs = null;
         switch (Objects.requireNonNull(alg)) {
-            case OPTIMIZED -> filteredUTXOs = UTXOFilterAlgorithms.meetInTheMiddleSelectionAlgorithm(allUTXOs, amount.add(transactionFee));
-            case HIGHEST_SORTED -> filteredUTXOs = UTXOFilterAlgorithms.selectUTXOsInSortedOrder(allUTXOs, amount.add(transactionFee), Boolean.TRUE);
-            case LOWEST_SORTED -> filteredUTXOs = UTXOFilterAlgorithms.selectUTXOsInSortedOrder(allUTXOs, amount.add(transactionFee), Boolean.FALSE);
-            case RANDOM -> filteredUTXOs = UTXOFilterAlgorithms.selectRandomizedUTXOs(allUTXOs, amount.add(transactionFee));
+            case OPTIMIZED ->
+                    filteredUTXOs = UTXOFilterAlgorithms.meetInTheMiddleSelectionAlgorithm(allUTXOs, amount.add(transactionFee));
+            case HIGHEST_SORTED ->
+                    filteredUTXOs = UTXOFilterAlgorithms.selectUTXOsInSortedOrder(allUTXOs, amount.add(transactionFee), Boolean.TRUE);
+            case LOWEST_SORTED ->
+                    filteredUTXOs = UTXOFilterAlgorithms.selectUTXOsInSortedOrder(allUTXOs, amount.add(transactionFee), Boolean.FALSE);
+            case RANDOM ->
+                    filteredUTXOs = UTXOFilterAlgorithms.selectRandomizedUTXOs(allUTXOs, amount.add(transactionFee));
         }
 
         return filteredUTXOs;
