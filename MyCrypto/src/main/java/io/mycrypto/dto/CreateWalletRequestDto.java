@@ -7,8 +7,8 @@ import lombok.ToString;
 @Data
 @ToString
 public class CreateWalletRequestDto {
-    @JsonProperty("name")
+    @JsonProperty(value = "name", required = true)
     String walletName;
-    @JsonProperty(value = "key-name", required = false)
+    @JsonProperty("key-name")
     String keyName;
 }

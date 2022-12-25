@@ -1,5 +1,8 @@
 package io.mycrypto.exception;
 
+import io.mycrypto.util.Utility;
+import org.json.simple.JSONObject;
+
 public class MyCustomException extends Exception {
     private String errorMessage;
 
@@ -10,6 +13,10 @@ public class MyCustomException extends Exception {
 
     public String getErrorMessage() {
         return errorMessage;
+    }
+
+    public JSONObject getMessageAsJSONString() {
+        return Utility.constructJsonResponse("err", this.errorMessage);
     }
 
     public void setErrorMessage(String errorMessage) {

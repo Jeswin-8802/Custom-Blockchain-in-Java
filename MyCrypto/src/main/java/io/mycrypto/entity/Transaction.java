@@ -39,7 +39,7 @@ public class Transaction {
     @JsonProperty("outputs")
     List<Output> outputs;
     @JsonProperty("spent-transactions-total")
-    BigDecimal spent; // (Sender's) amount of digital currency remaining after a cryptocurrency transaction is executed (Unspent Transaction Output)
+    BigDecimal spent; // (Sender's) total UTXO used in the transaction
     @JsonProperty("message")
     String msg = "transferring...";
     @JsonProperty("transaction-fee")
@@ -58,7 +58,7 @@ public class Transaction {
     }
 
     public Transaction() {
-        this.timeStamp = new Date().getTime();
+        // needed for ObjectMapper
     }
 
     public void calculateHash() {

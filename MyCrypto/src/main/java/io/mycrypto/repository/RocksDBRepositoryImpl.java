@@ -13,11 +13,11 @@ import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 // IMP links
 // http://javadox.com/org.rocksdb/rocksdbjni/5.15.10/org/rocksdb/RocksDB.html
+// https://javadoc.io/doc/org.rocksdb/rocksdbjni/latest/index.html
 
 @Slf4j
 @Repository
@@ -25,17 +25,26 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     private final static String DB_NAME_BLOCKCHAIN = "Blockchain"; // Block-Hash ==> block path
     private final static String DB_NAME_TRANSACTIONS = "Transactions"; // Transaction-Hash ==> Transaction Data (as JSON)
     private final static String DB_NAME_TRANSACTIONS_POOL = "Transactions-Pool"; // Transaction-Hash ==> Transaction Data (as JSON)
-    private final static String DB_NAME_NODES = "Nodes"; // Wallet Address ==> IP Address
+    private final static String DB_NAME_NODES = "Nodes"; // Wallet Address ==> ("IP Address" if foreign | "Wallet Name" if owned)
     private final static String DB_NAME_WALLETS = "Wallets"; // Wallet-Name ==> "PubKey PrvKey hash-160 dodo-coin-address"
     private final static String DB_NAME_ACCOUNT = "Accounts"; // Wallet Address ==> "TransactionId1,VOUT TransactionId2,VOUT ..."
 
     // --------------------------------------------------------------
     private final static String LOCATION_TO_STORE_DB;
+    private final static String PROJECT_FOLDER_PATH;
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
     private static final String FOLDER_TO_STORE_DB = "RocksDB";
+    private static final String PROJECT_FOLDER = "Dodo-coin";
 
     static {
-        LOCATION_TO_STORE_DB = SystemUtils.USER_DIR + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_DB + Utility.osAppender();
+        // 4 backslashes. Java compiler turns it into \\, which regex turns into a single \
+        String[] path = SystemUtils.USER_DIR.split(SystemUtils.IS_OS_WINDOWS ? "\\\\" : "/");
+        if (!path[path.length - 1].equals(PROJECT_FOLDER))
+            path = Arrays.copyOfRange(path, 0, path.length - 1);
+
+        PROJECT_FOLDER_PATH = String.join(Utility.osAppender(), path);
+
+        LOCATION_TO_STORE_DB = PROJECT_FOLDER_PATH + Utility.osAppender() + OUTER_RESOURCE_FOLDER + Utility.osAppender() + FOLDER_TO_STORE_DB + Utility.osAppender();
     }
     // --------------------------------------------------------------
 
@@ -47,6 +56,16 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
         RocksDB.loadLibrary();
         final Options options = new Options();
         options.setCreateIfMissing(true);
+
+        File resources = new File(PROJECT_FOLDER_PATH + Utility.osAppender() + OUTER_RESOURCE_FOLDER);
+        if (resources.isDirectory())
+            log.info(String.format("The directory \\%s\\ found...", OUTER_RESOURCE_FOLDER));
+        else {
+            if (resources.mkdir())
+                log.info(String.format("The directory \\%s\\ is created...", OUTER_RESOURCE_FOLDER));
+            else
+                log.info(String.format("Unable to create directory \\%s\\ ...", OUTER_RESOURCE_FOLDER));
+        }
 
         createDB(options, DB_NAME_BLOCKCHAIN, "Blockchain");
 
@@ -64,12 +83,12 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     private void createDB(Options options, String dbName, String msg) {
         File base = new File(LOCATION_TO_STORE_DB);
         if (base.isDirectory())
-            log.info("The directory \"RocksDB\" found...");
+            log.info("The directory \\RocksDB\\ found...");
         else {
             if (base.mkdir())
-                log.info("directory \"RocksDB\" created...");
+                log.info("directory \\RocksDB\\ created...");
             else
-                log.error("Unable to create dir \"RocksDB\"");
+                log.error("Unable to create dir \\RocksDB\\ ...");
         }
 
         File dbDir = new File(LOCATION_TO_STORE_DB, dbName);
@@ -113,7 +132,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
     @Override
     public String find(String key, String db) {
-        log.info("----FIND----");
+        log.info("----FIND----      KEY: {}     DB: {}", key, db);
         String result = null;
         try {
             byte[] bytes = null;
@@ -136,7 +155,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
     @Override
     public boolean delete(String key, String db) {
-        log.info("----DELETE----");
+        log.info("----DELETE----      KEY: {}     DB: {}", key, db);
         try {
             switch (db) {
                 case DB_NAME_BLOCKCHAIN -> dbBlockchain.delete(key.getBytes());

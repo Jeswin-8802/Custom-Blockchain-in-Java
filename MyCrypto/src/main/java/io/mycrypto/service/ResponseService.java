@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mycrypto.dto.*;
 import io.mycrypto.entity.Block;
-import io.mycrypto.entity.Transaction;
 import io.mycrypto.exception.MyCustomException;
 import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.service.block.BlockService;
@@ -14,7 +13,6 @@ import io.mycrypto.util.Utility;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SystemUtils;
 import org.apache.logging.log4j.util.Strings;
-import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -127,7 +125,7 @@ public class ResponseService {
             try {
                 genesis = blockService.mineGenesisBlock(walletName);
             } catch (MyCustomException e) {
-                return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", e.getErrorMessage()));
+                return ResponseEntity.internalServerError().body(e.getMessageAsJSONString());
             }
             return ResponseEntity.ok(new JSONParser().parse(blockService.saveBlock(genesis, "blk" + String.format("%010d", genesis.getHeight() + 1))));
         } catch (ParseException e) {
@@ -145,6 +143,12 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> createWallet(CreateWalletRequestDto request) {
+        // validation
+        if (Strings.isEmpty(request.getWalletName())) {
+            log.error("Wallet Name cannot be empty");
+            return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Wallet Name cannot be empty"));
+        }
+
         WalletInfoDto value = null;
         try {
             value = Utility.generateKeyPairToFile(request.getKeyName());
@@ -156,6 +160,7 @@ public class ResponseService {
         try {
             rocksDB.save(request.getWalletName(), new ObjectMapper().writeValueAsString(value), "Wallets");
             assert value != null;
+            rocksDB.save(value.getAddress(), request.getWalletName(), "Nodes");
             rocksDB.save(value.getAddress(), "EMPTY", "Accounts");
             return constructWalletResponseFromInfo(new ObjectMapper().writeValueAsString(value));
         } catch (JsonProcessingException e) {
@@ -192,7 +197,7 @@ public class ResponseService {
         WalletResponseDto response = new WalletResponseDto();
         assert info != null;
         response.setPublicKey(info.getPublicKey());
-        response.setPrivateKey(info.getPublicKey());
+        response.setPrivateKey(info.getPrivateKey());
         response.setHash160(info.getHash160());
 
         // calculate balance from AccountDB
@@ -251,7 +256,7 @@ public class ResponseService {
             if (walletService.verifyAddress(request.getAddress(), request.getHash160()))
                 return ResponseEntity.ok(Utility.constructJsonResponse("msg", "valid"));
         } catch (MyCustomException e) {
-            return ResponseEntity.badRequest().body(e.getErrorMessage());
+            return ResponseEntity.badRequest().body(e.getMessageAsJSONString());
         }
         return ResponseEntity.ok(Utility.constructJsonResponse("msg", "invalid"));
     }
@@ -305,12 +310,32 @@ public class ResponseService {
         return ResponseEntity.ok(response);
     }
 
-    public ResponseEntity<Object> fetchUTXOsForTransaction(String amount, String algorithm, String walletName) {
-        List<UTXODto> UTXOs = null;
+    public ResponseEntity<Object> fetchUTXOsForTransaction(String amount, Integer algorithm, String walletName, String transactionFee) {
+        // fetching Wallet Address
+        WalletInfoDto walletInfo;
         try {
-            UTXOs = transactionService.selectivelyFetchUTXOs(amount, algorithm, walletName);
+            if (Strings.isEmpty(walletName)) {
+                String info = rocksDB.find("default", "Wallets");
+                if (Strings.isEmpty(info))
+                    return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "default wallet not found..."));
+                walletInfo = new ObjectMapper().readValue(info, WalletInfoDto.class);
+            } else {
+                String info = rocksDB.find(walletName, "Wallets");
+                if (Strings.isEmpty(info))
+                    return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", String.format("Wallet \"%s\" not found in WalletsDB...", walletName)));
+                walletInfo = new ObjectMapper().readValue(info, WalletInfoDto.class);
+            }
+        } catch (JsonProcessingException e) {
+            log.error("Error occurred while parsing Wallet content from String to DTO object");
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+
+        List<UTXODto> UTXOs;
+        try {
+            UTXOs = transactionService.selectivelyFetchUTXOs(new BigDecimal(amount), algorithm, walletInfo.getAddress(), Strings.isEmpty(transactionFee) ? new BigDecimal(0) : new BigDecimal(transactionFee));
         } catch (MyCustomException e) {
-            return ResponseEntity.badRequest().body(e.getErrorMessage());
+            return ResponseEntity.badRequest().body(e.getMessageAsJSONString());
         }
         BigDecimal total = new BigDecimal(0);
         for (UTXODto utxo : UTXOs)
@@ -319,6 +344,50 @@ public class ResponseService {
                 .UTXOs(UTXOs)
                 .total(total)
                 .build());
+    }
+
+    public ResponseEntity<Object> makeTransaction(MakeTransactionDto requestDto) {
+        // validation
+        if (Strings.isEmpty(requestDto.getTo())) {
+            log.error("The field \"To\" cannot be empty");
+            return ResponseEntity.badRequest().build();
+        }
+        if (ObjectUtils.isEmpty(requestDto.getAmount())) {
+            log.error("The field \"amount\" cannot be empty");
+            return ResponseEntity.badRequest().build();
+        }
+
+        if (Strings.isEmpty(requestDto.getFrom())) {
+            String defaultWalletInfo = rocksDB.find("default", "Wallets");
+            if (Strings.isEmpty(defaultWalletInfo)) {
+                log.error("\"default\" wallet not found...");
+                return ResponseEntity.internalServerError().build();
+            }
+            requestDto.setFrom(defaultWalletInfo);
+        } else {
+            String walletNameFromAddress = rocksDB.find(requestDto.getFrom(), "Nodes");
+            if (Strings.isEmpty(walletNameFromAddress)) {
+                log.error(String.format("No wallet found with address %s", requestDto.getFrom()));
+                return ResponseEntity.badRequest().build();
+            }
+            String walletInfoString = rocksDB.find(walletNameFromAddress, "Wallets");
+            if (Strings.isEmpty(walletInfoString)) {
+                log.error("Wallet not found in WalletDB although it was found in NodesDB");
+                return ResponseEntity.internalServerError().build();
+            }
+            requestDto.setFrom(walletInfoString);
+        }
+
+        if (Strings.isEmpty(rocksDB.find(requestDto.getTo(), "Nodes"))) {
+            log.error("Invalid To address..");
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            return ResponseEntity.ok(transactionService.makeTransaction(requestDto));
+        } catch (MyCustomException e) {
+            return ResponseEntity.internalServerError().body(e.getMessageAsJSONString());
+        }
     }
 
     // ----------------------------------------------------------------------------------------------------------------------------------
@@ -334,31 +403,6 @@ public class ResponseService {
         if (!rocksDB.delete(key, db))
             return ResponseEntity.badRequest().build();
         return ResponseEntity.ok().build();
-    }
-
-    // -------------EXPERIMENTAL---------------------------------------------------------------------------------------------------------
-
-    public void makeTransaction() {
-        Transaction t1 = new Transaction(), t2 = new Transaction();
-        JSONObject walletAinfo = null, walletBinfo = null;
-        try {
-            walletAinfo = (JSONObject) new JSONParser().parse(rocksDB.find("A", "Wallets"));
-            walletBinfo = (JSONObject) new JSONParser().parse(rocksDB.find("B", "Wallets"));
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
-
-        assert walletAinfo != null;
-        String AddressOfA = (String) walletAinfo.get("dodo-coin-address");
-        log.info("AddressOfA ==> {}", AddressOfA);
-        String AddressOfB = (String) walletBinfo.get("dodo-coin-address");
-        log.info("AddressOfB ==> {}", AddressOfB);
-
-        // sending 10 satoshis from A to B
-        // 1) B sends its address to A
-
-
-        // Constructing transaction data [input count (short to binary) i.e. 4 bytes,
     }
 
 }

@@ -12,7 +12,7 @@ public class UTXODto {
     @JsonProperty("transaction-id")
     String transactionId;
     @JsonProperty("vout")
-    long vout;
+    Long vout;
     @JsonProperty("amount")
     BigDecimal amount;
 }

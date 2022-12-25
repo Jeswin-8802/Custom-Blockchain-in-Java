@@ -1,6 +1,7 @@
 package io.mycrypto.controller;
 
 import io.mycrypto.dto.CreateWalletRequestDto;
+import io.mycrypto.dto.MakeTransactionDto;
 import io.mycrypto.dto.VerifyAddressRequestDto;
 import io.mycrypto.service.ResponseService;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@Slf4j
 @RestController
 public class BlockchainController {
 
@@ -55,7 +55,7 @@ public class BlockchainController {
     /**
      * Creates a new wallet
      *
-     * @param requestDto Holds the Wallet Name and the name of the key you want to store it as locally
+     * @param requestDto Holds the Wallet Name and the name of the key (the key itself will be stored locally in the RESOURCES folder)
      * @return HTTP response
      */
     @PostMapping("create-wallet")
@@ -130,27 +130,26 @@ public class BlockchainController {
      * @return HTTP response
      */
     @GetMapping("optimized-utxo-fetch")
-    public ResponseEntity<Object> fetchUTXOsForTransaction(@RequestParam("amount") String amount, @RequestParam("algorithm") String algorithm, @RequestParam("wallet-name") String walletName) {
-        return service.fetchUTXOsForTransaction(amount, algorithm, walletName);
+    public ResponseEntity<Object> fetchUTXOsForTransaction(@RequestParam("amount") String amount, @RequestParam("algorithm") Integer algorithm, @RequestParam("wallet-name") String walletName, @RequestParam("transaction-fee") String transactionFee) {
+        return service.fetchUTXOsForTransaction(amount, algorithm, walletName, transactionFee);
+    }
+
+    @PostMapping("make-transaction")
+    public ResponseEntity<Object> maketransaction(@RequestBody MakeTransactionDto requestDto) {
+        return service.makeTransaction(requestDto);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
-     * Deletes any value from the 6 DBs by its key
+     * Deletes any value from any of the 6 DBs by its key
      *
      * @param db  Name of the DB; Must be the same as the allowed names of the 6 DBs; Refer the properties file
-     * @param key RocksDB stores data in the form of key value pairs, therefore to get or delete you need ust the key
+     * @param key RocksDB stores data in the form of key value pairs, therefore to get or delete you use a key
      * @return HTTP response
      */
     @DeleteMapping("delete")
     public ResponseEntity<Object> delete(@RequestParam(name = "db") String db, @RequestParam(name = "key") String key) {
         return service.delete(key, db);
-    }
-
-    @GetMapping("make-transaction")
-    public ResponseEntity<String> maketransaction() {
-        service.makeTransaction();
-        return ResponseEntity.ok().build();
     }
 }

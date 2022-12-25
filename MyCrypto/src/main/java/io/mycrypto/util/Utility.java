@@ -19,10 +19,9 @@ import java.security.*;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPoint;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Objects;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.*;
 
 
 @Slf4j
@@ -38,6 +37,7 @@ public class Utility {
     private static final byte ODD = 0x03;
 
     static {
+        Security.addProvider(new BouncyCastleProvider());
         LOCATION_TO_STORE_KEY = SystemUtils.USER_DIR + osAppender() + OUTER_RESOURCE_FOLDER + osAppender() + FOLDER_TO_STORE_KEYS + osAppender();
     }
 
@@ -92,7 +92,6 @@ public class Utility {
             }
         }
 
-        Security.addProvider(new BouncyCastleProvider());
         try (FileOutputStream pubKey = new FileOutputStream(LOCATION_TO_STORE_KEY + (Strings.isNotEmpty(keyName) ? keyName + "_pub" : PUBLIC_KEY_NAME) + ".pem");
              FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEY + (Strings.isNotEmpty(keyName) ? keyName + "_prv" : PRIVATE_KEY_NAME) + ".pem")) {
 
@@ -104,24 +103,20 @@ public class Utility {
             PrivateKey privateKey = pair.getPrivate();
             PublicKey publicKey = pair.getPublic();
 
-            log.info("generating " + PRIVATE_KEY_NAME + ".pem...........\n");
+            log.info("generating " + (Strings.isNotEmpty(keyName) ? keyName + "_prv" : PRIVATE_KEY_NAME) + ".pem...........\n");
 
-            String privateKeyString = "-----BEGIN PRIVATE KEY-----" + "\n" +
-                    Base64.getMimeEncoder().encodeToString(privateKey.getEncoded()) + "\n" +
-                    "-----END PRIVATE KEY-----";
+            String privateKeyString = Base64.getMimeEncoder().encodeToString(privateKey.getEncoded());
 
-            log.info(PRIVATE_KEY_NAME + ".pem ==> \n" + privateKeyString + "\n");
+            log.info((Strings.isNotEmpty(keyName) ? keyName + "_prv" : PRIVATE_KEY_NAME) + ".pem ==> \n" + privateKeyString + "\n");
 
-            log.info("generating " + PUBLIC_KEY_NAME + ".pem...........\n");
+            log.info("generating " + (Strings.isNotEmpty(keyName) ? keyName + "_pub" : PUBLIC_KEY_NAME) + ".pem...........\n");
 
-            String publicKeyString = "-----BEGIN PUBLIC KEY-----" + "\n" +
-                    Base64.getMimeEncoder().encodeToString(publicKey.getEncoded()) + "\n" +
-                    "-----END PUBLIC KEY-----";
+            String publicKeyString = Base64.getMimeEncoder().encodeToString(publicKey.getEncoded());
 
-            log.info(PUBLIC_KEY_NAME + ".pem ==> \n" + publicKeyString + "\n");
+            log.info((Strings.isNotEmpty(keyName) ? keyName + "_pub" : PUBLIC_KEY_NAME) + ".pem ==> \n" + publicKeyString + "\n");
 
-            priKey.write(privateKeyString.getBytes(StandardCharsets.UTF_8));
-            pubKey.write(publicKeyString.getBytes(StandardCharsets.UTF_8));
+            priKey.write(String.format("-----BEGIN PRIVATE KEY-----\n%s\n-----END PRIVATE KEY-----", privateKeyString).getBytes(StandardCharsets.UTF_8));
+            pubKey.write(String.format("-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----", publicKeyString).getBytes(StandardCharsets.UTF_8));
 
             ECPublicKey epub = (ECPublicKey) publicKey;
             ECPoint pt = epub.getW();
@@ -155,8 +150,8 @@ public class Utility {
             log.info("Wallet Address: {}", Base58.encode(sumBytes));
 
             WalletInfoDto data = new WalletInfoDto();
-            data.setPublicKey(bytesToHex(publicKey.getEncoded()));
-            data.setPrivateKey(bytesToHex(privateKey.getEncoded()));
+            data.setPublicKey(publicKeyString.replaceAll("[\n\r]", ""));
+            data.setPrivateKey(privateKeyString.replaceAll("[\n\r]", ""));
             data.setHash160(bytesToHex(ripeMD));
             data.setAddress(Base58.encode(sumBytes));
 
@@ -167,6 +162,40 @@ public class Utility {
             throw new RuntimeException(e);
         }
         return null;
+    }
+
+    public static String getSignedData(String privateKey, String data) throws NoSuchAlgorithmException, SignatureException, InvalidKeyException, UnsupportedEncodingException {
+        Signature ecdsaSign = Signature.getInstance("SHA256withECDSA");
+        PrivateKey key = convertStringToPrivateKey(privateKey);
+        log.info(String.valueOf(key));
+
+        ecdsaSign.initSign(key);
+        ecdsaSign.update(data.getBytes("UTF-8"));
+
+        byte[] signature = ecdsaSign.sign();
+        return Base64.getEncoder().encodeToString(signature);
+    }
+
+    public static PrivateKey convertStringToPrivateKey(String pvtKey) {
+        PrivateKey privateKey;
+        try {
+            byte[] sigBytes = Base64.getDecoder().decode(pvtKey);
+            KeyFactory keyFactory = KeyFactory.getInstance("ECDSA", "BC");
+            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(sigBytes);
+            privateKey = keyFactory.generatePrivate(privateKeySpec);
+
+        } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException e) {
+            throw new RuntimeException(e);
+        }
+
+        return privateKey;
+    }
+
+    public static String getHash160FromAddress(String address) {
+        byte[] decoded = Base58.decode(address); // length: 25
+        byte[] hash160 = new byte[decoded.length - 5];
+        System.arraycopy(decoded, 1, hash160, 0, decoded.length - 5);
+        return bytesToHex(hash160);
     }
 
     public static String bytesToHex(byte[] a) {
