@@ -19,7 +19,7 @@ import java.util.Map;
 
 // IMP links
 // http://javadox.com/org.rocksdb/rocksdbjni/5.15.10/org/rocksdb/RocksDB.html
-// https://javadoc.io/doc/org.rocksdb/rocksdbjni/latest/index.html
+// https://javadoc.io/static/org.rocksdb/rocksdbjni/7.8.3/org/rocksdb/RocksDB.html
 
 @Slf4j
 @Repository
@@ -125,7 +125,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
     @Override
     public void save(String key, String value, String db) {
-        log.info("----SAVE----");
+        log.info("----SAVE----      KEY: {}     VALUE: {}     DB: {}", key, value.length() > 25 ? value.substring(0, 25) + " ......." : value, db);
         try {
             switch (db) {
                 case DB_NAME_BLOCKCHAIN -> dbBlockchain.put(key.getBytes(), value.getBytes());
@@ -188,6 +188,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
     @Override
     public Map<String, String> getList(String db) {
+        log.info("----GET LIST----      DB: {}", db);
         Map<String, String> result = new HashMap<>();
 
         RocksIterator itr = null;
@@ -209,5 +210,31 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
             itr.next();
         }
         return result;
+    }
+
+    @Override
+    public long getCount(String db) {
+        switch (db) {
+            case DB_NAME_BLOCKCHAIN -> {
+                return dbBlockchain.getLatestSequenceNumber();
+            }
+            case DB_NAME_TRANSACTIONS -> {
+                return dbTransactions.getLatestSequenceNumber();
+            }
+            case DB_NAME_TRANSACTIONS_POOL -> {
+                return dbTransactionsPool.getLatestSequenceNumber();
+            }
+            case DB_NAME_NODES -> {
+                return dbNodes.getLatestSequenceNumber();
+            }
+            case DB_NAME_WALLETS -> {
+                return dbWallets.getLatestSequenceNumber();
+            }
+            case DB_NAME_ACCOUNT -> {
+                return dbAccount.getLatestSequenceNumber();
+            }
+            default -> log.error("Please enter valid DB name");
+        }
+        return 0L;
     }
 }

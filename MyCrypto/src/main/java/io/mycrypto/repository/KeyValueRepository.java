@@ -12,4 +12,6 @@ public interface KeyValueRepository<K, V> {
     boolean delete(K key, String db);
 
     Map<String, String> getList(String db);
+
+    long getCount(String db);
 }

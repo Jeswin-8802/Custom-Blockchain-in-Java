@@ -23,7 +23,7 @@ public class BlockchainController {
      * @return HTTP response
      */
     @GetMapping("fetch-block-content")
-    public ResponseEntity<Object> findBlockContent(@RequestParam(name = "block-hash") String hash) {
+    public ResponseEntity<Object> fetchBlockContent(@RequestParam(name = "block-hash") String hash) {
         return service.constructResponseForFetchBlockContent(hash);
     }
 
@@ -45,8 +45,13 @@ public class BlockchainController {
      * @return HTTP response
      */
     @GetMapping("create-genesis-block")    // be careful with his API, must be used only once by the admin
-    public ResponseEntity<Object> createGenesisBlock(@RequestParam(name = "wallet-name") String walletName) {
+    public ResponseEntity<Object> createGenesisBlock(@RequestParam(name = "wallet-name", required = false) String walletName) {
         return service.createGenesisBlock(walletName);
+    }
+
+    @GetMapping("mine-block")
+    public ResponseEntity<Object> mineBlock(@RequestParam(name = "wallet-name", required = false) String walletName) {
+        return service.mineBlock(walletName);
     }
 
     // ---------WALLET--------------------------------------------------------------------------------------------------
@@ -103,8 +108,9 @@ public class BlockchainController {
      * @return HTTP response
      */
     @GetMapping("fetch-transaction")
-    public ResponseEntity<Object> fetchTransaction(@RequestParam(name = "id") String id) {
-        return service.constructResponseForFetchTransaction(id);
+    public ResponseEntity<Object> fetchTransaction(@RequestParam(name = "id") String id,
+                                                   @RequestParam(name = "search-in-transaction-pool") Boolean searchInTransactionPool) {
+        return service.constructResponseForFetchTransaction(id, searchInTransactionPool);
     }
 
     /**
@@ -114,8 +120,8 @@ public class BlockchainController {
      * @return HTTP response
      */
     @GetMapping("fetch-utxos")
-    public ResponseEntity<Object> fetchUTXOs(@RequestParam(name = "dodo-coin-address") String address) {
-        return service.fetchUTXOs(address);
+    public ResponseEntity<Object> fetchUTXOs(@RequestParam(name = "dodo-coin-address") String address, @RequestParam(name = "db") String db) {
+        return service.fetchUTXOs(address, db);
     }
 
     /**
@@ -131,7 +137,10 @@ public class BlockchainController {
      * @return HTTP response
      */
     @GetMapping("optimized-utxo-fetch")
-    public ResponseEntity<Object> fetchUTXOsForTransaction(@RequestParam("amount") String amount, @RequestParam("algorithm") Integer algorithm, @RequestParam("wallet-name") String walletName, @RequestParam("transaction-fee") String transactionFee) {
+    public ResponseEntity<Object> fetchUTXOsForTransaction(@RequestParam("amount") String amount,
+                                                           @RequestParam("algorithm") Integer algorithm,
+                                                           @RequestParam("wallet-name") String walletName,
+                                                           @RequestParam("transaction-fee") String transactionFee) {
         return service.fetchUTXOsForTransaction(amount, algorithm, walletName, transactionFee);
     }
 
@@ -146,6 +155,16 @@ public class BlockchainController {
         return service.makeTransaction(requestDto);
     }
 
+    @GetMapping("get-transactions-count")
+    public Long getTransactionsCount() {
+        return service.getTransactionsCount();
+    }
+
+    @GetMapping("get-transactions-count-in-transactions-pool")
+    public Long getTransactionsCountInTransactionsPool() {
+        return service.getTransactionsCountInTransactionsPool();
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
@@ -156,7 +175,8 @@ public class BlockchainController {
      * @return HTTP response
      */
     @DeleteMapping("delete")
-    public ResponseEntity<Object> delete(@RequestParam(name = "db") String db, @RequestParam(name = "key") String key) {
+    public ResponseEntity<Object> delete(@RequestParam(name = "db") String db,
+                                         @RequestParam(name = "key") String key) {
         return service.delete(key, db);
     }
 }

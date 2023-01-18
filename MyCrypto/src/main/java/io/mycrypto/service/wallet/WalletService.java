@@ -62,8 +62,8 @@ public class WalletService {
             List<UTXODto> UTXOs = null;
             if (!transactionDetails.equals("EMPTY")) {
                 try {
-                    UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactionDetails, JSONObject.class));
-                } catch (JsonProcessingException e) {
+                    UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactionDetails, JSONObject.class), "Transactions");
+                } catch (JsonProcessingException | MyCustomException e) {
                     throw new RuntimeException(e);
                 }
             }
