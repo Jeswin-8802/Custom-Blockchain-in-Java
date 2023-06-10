@@ -132,11 +132,12 @@ public class TransactionService {
                 input.setScriptSig(scriptSig);
                 input.setSize((long) scriptSig.getBytes().length);
 
-                // removing UTXO used for transaction from wallet
-                transactionJSON.remove(utxoDto.getTransactionId());
-
                 inputs.add(input);
             }
+
+            // removing UTXO used for transaction from wallet
+            optimizedVoutRefactoring(transactionJSON, utxos);
+
             log.info("{}::----------------------- {}", methodName, transactionJSON);
             // saving updated transaction UTXO information in Accounts DB
             if (transactionJSON.isEmpty())
@@ -153,22 +154,30 @@ public class TransactionService {
             log.info("{}::Total ------------------------> {}", methodName, total);
 
             // construct outputs
-            // There are 2 outputs; 1 being sent to receiver and the balance that gets credited
+            // There are 2 outputs as default; 1 being sent to receiver and the balance that gets credited back to the sender
 
-            // output 1
-            Output output1 = new Output();
-            output1.setScriptPubKey(new ScriptPublicKey(Utility.getHash160FromAddress(requestDto.getTo()), requestDto.getTo()));
-            output1.setAmount(requestDto.getAmount());
-            output1.setN(0L);
-            outputs.add(output1);
-            // output 2
-            Output output2 = new Output();
-            output2.setScriptPubKey(new ScriptPublicKey(fromInfo.getHash160(), fromInfo.getAddress()));
-            output2.setAmount(total.subtract(requestDto.getAmount()).subtract(ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? config.getTransactionFee() : requestDto.getTransactionFee()));    // total - amount - transactionFee
-            output2.setN(1L);
-            outputs.add(output2);
+            // output part 1
 
-            transaction.setNumOutputs(2);
+            int outputNum = 0;
+            outputNum += splitAndConstructOutputs(
+                    requestDto,
+                    outputs,
+                    new ScriptPublicKey(Utility.getHash160FromAddress(requestDto.getTo()), requestDto.getTo()),
+                    false,
+                    total,
+                    0);
+
+            // output part 2
+
+            outputNum += splitAndConstructOutputs(
+                    requestDto,
+                    outputs,
+                    new ScriptPublicKey(fromInfo.getHash160(), fromInfo.getAddress()),
+                    true,
+                    total,
+                    outputNum);
+
+            transaction.setNumOutputs(outputNum);
 
         } else {
             transaction.setNumInputs(0L);
@@ -204,9 +213,66 @@ public class TransactionService {
 
         saveTransaction(transaction, "Transactions-Pool");
 
-        // Note that the transaction will not be added to the Accounts DB until it gets mined
+        // Note: the new transaction will not be added to Accounts DB until it gets mined
 
         return transaction;
+    }
+
+    private int splitAndConstructOutputs(MakeTransactionDto requestDto, List<Output> outputs, ScriptPublicKey scriptPublicKey, Boolean isOutputToSender, BigDecimal total, int currentOutputNum) {
+        int outputNum = currentOutputNum;
+
+        String outputPartsInfo = isOutputToSender ? requestDto.getReceivingOutputParts() : requestDto.getToOutputParts();
+
+        if (!Strings.isEmpty(outputPartsInfo) && outputPartsInfo.contains(":")) {
+            List<Double> amountRatios = new ArrayList<>(Arrays.stream(outputPartsInfo.split(":")).map(Double::parseDouble).toList());
+            Double sum = amountRatios.stream().reduce(0.0, Double::sum);
+            amountRatios.replaceAll(aDouble -> aDouble / sum);
+            for (int i = 0; i < amountRatios.size(); i++) {
+                Output output = new Output();
+                output.setScriptPubKey(scriptPublicKey);
+                output.setAmount(requestDto.getAmount().multiply(BigDecimal.valueOf(amountRatios.get(i))));
+                output.setN((long) (i + currentOutputNum));
+                outputs.add(output);
+            }
+            outputNum += amountRatios.size();
+        } else {
+            int loopCount = Strings.isBlank(outputPartsInfo) ? (isOutputToSender ? config.getDefaultOutputDivisions() : 1) : (int)Double.parseDouble(outputPartsInfo);
+            BigDecimal amount = isOutputToSender ?
+                    (total.subtract(requestDto.getAmount()).subtract(ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? config.getTransactionFee() : requestDto.getTransactionFee())).divide(BigDecimal.valueOf(loopCount)) : // (total - amount - transactionFee) / num_parts
+                    requestDto.getAmount().divide(BigDecimal.valueOf(loopCount));
+            for (int i = 0; i < loopCount; i++) {
+                Output output = new Output();
+                output.setScriptPubKey(scriptPublicKey);
+                output.setAmount(amount);
+                output.setN((long) (i + currentOutputNum));
+                outputs.add(output);
+            }
+            outputNum += loopCount;
+        }
+        return outputNum;
+    }
+
+    private void optimizedVoutRefactoring(JSONObject transactionJSON, List<UTXODto> utxos) {
+        Map<String, List<Long>> utxosSummmary = new HashMap<>();
+        for (UTXODto utxo: utxos) {
+            utxosSummmary.putIfAbsent(utxo.getTransactionId(), new ArrayList<>());
+            utxosSummmary.get(utxo.getTransactionId()).add(utxo.getVout());
+        }
+
+        // selectively removing vouts from json field values
+        for (String transactionId :utxosSummmary.keySet()) {
+            String VOUTs = (String) transactionJSON.get(transactionId);
+            if (VOUTs.contains(",")) {
+                List<String> voutList = new ArrayList<>(List.of(VOUTs.split(",")));
+                for (Long vout: utxosSummmary.get(transactionId))
+                    voutList.remove(vout.toString());
+                if (CollectionUtils.isEmpty(voutList))
+                    transactionJSON.remove(transactionId);
+                else
+                    transactionJSON.put(transactionId, String.join(",", voutList));
+            } else
+                transactionJSON.remove(transactionId);
+        }
     }
 
     private String constructScriptSig(WalletInfoDto fromInfo, String dataToSign) throws MyCustomException {
@@ -222,44 +288,6 @@ public class TransactionService {
         log.info("{}::Signature ==> {}", methodName, signature);
 
         return signature + " " + fromInfo.getPublicKey();
-    }
-
-    public Transaction constructCoinbaseTransaction(WalletInfoDto info, List<Transaction> transactionsList) throws MyCustomException {
-        Transaction coinbase = new Transaction("", info.getAddress());
-        coinbase.setNumInputs(0);
-        coinbase.setInputs(new ArrayList<>());
-        coinbase.setNumOutputs(2);
-
-        // construct outputs
-
-        // construct Script Public Key (Locking Script)
-        ScriptPublicKey script = new ScriptPublicKey(info.getHash160(), info.getAddress());
-        Output output1 = new Output();
-        output1.setAmount(config.getBlockReward());
-        output1.setN(0L);
-        output1.setScriptPubKey(script);
-
-        Output output2 = new Output();
-
-        // calculate the transaction fee for all the transactions that will be included in the block
-        BigDecimal total = new BigDecimal(0);
-        for (Transaction tx: transactionsList)
-            total = total.add(tx.getTransactionFee());
-
-        output2.setAmount(total);
-        output2.setN(1L);
-        output2.setScriptPubKey(script);
-
-        coinbase.setOutputs(List.of(output1, output2));
-        coinbase.setSpent(new BigDecimal("0.0")); // 0 as there are no inputs
-        coinbase.setMsg("COINBASE...");
-        coinbase.calculateHash(); // calculates and sets transactionId
-
-        saveTransaction(coinbase, "Transactions");
-
-        saveTransactionToWalletIfTransactionPointsToWalletOwned(coinbase);
-
-        return coinbase;
     }
 
     public List<Transaction> retrieveAndDeleteTransactionsFromTransactionsPool() throws MyCustomException {
@@ -322,33 +350,56 @@ public class TransactionService {
      * Creates a coinbase transaction
      *
      * @param info Holds Wallet Information
+     * @param forGenesisBlock A Boolean value which specifies if the coinbase transaction belongs to a genesis block or a normal block
+     * @param transactionsList A list of transactions which is considered when the transaction fee of all transactions in a block needs to be considered when mining a block
      * @return Transaction Object containing information about the coinbase transaction
      */
-    public Transaction constructCoinbaseTransactionForGenesisBlock(WalletInfoDto info) throws MyCustomException {
+    public Transaction constructCoinbaseTransaction(WalletInfoDto info, Boolean forGenesisBlock, List<Transaction> transactionsList) throws MyCustomException {
         Transaction coinbase = new Transaction("", info.getAddress());
         coinbase.setNumInputs(0);
         coinbase.setInputs(new ArrayList<>());
-        coinbase.setNumOutputs(1);
+        coinbase.setNumOutputs(config.getDefaultOutputDivisions() + (CollectionUtils.isEmpty(transactionsList) ? 0 : 1));
 
         // construct output
 
         // construct Script Public Key (Locking Script)
         ScriptPublicKey script = new ScriptPublicKey(info.getHash160(), info.getAddress());
 
-        Output output = new Output();
-        output.setAmount(config.getBlockReward());
-        output.setN(0L);
-        output.setScriptPubKey(script);
+        List<Output> outputList = new ArrayList<>();
+        for (int i = 0; i < config.getDefaultOutputDivisions(); i++) {
+            Output output = new Output();
+            output.setAmount(config.getBlockReward().divide(new BigDecimal(config.getDefaultOutputDivisions())));
+            output.setN((long)i);
+            output.setScriptPubKey(script);
 
-        // set output
-        coinbase.setOutputs(List.of(output));
-        coinbase.setSpent(new BigDecimal("0.0")); // 0 as there are no inputs
-        coinbase.setMsg("The first and only transaction within the genesis block...");
+            outputList.add(output);
+        }
+
+        if (!CollectionUtils.isEmpty(transactionsList)) {
+            Output output = new Output();
+
+            // calculate the transaction fee for all the transactions that will be included in the block
+            BigDecimal total = new BigDecimal(0);
+            for (Transaction tx: transactionsList)
+                total = total.add(tx.getTransactionFee());
+
+            output.setAmount(total);
+            output.setN((long) outputList.size());
+            output.setScriptPubKey(script);
+
+            outputList.add(output);
+        }
+
+        // set outputs
+        coinbase.setOutputs(outputList);
+        coinbase.setSpent(new BigDecimal("0.0")); // 0 as there are no inputs for a coinbase transaction
+        coinbase.setMsg(forGenesisBlock ? "The first and only transaction within the genesis block..." : "COINBASE...");
         coinbase.calculateHash(); // calculates and sets transactionId
 
         saveTransaction(coinbase, "Transactions");
+        // saving to Transactions DB and not to Transactions-Pool DB for the time being until network broadcast has been implemented
+        // TODO: save to Transactions-Pool until network broadcast is brought
 
-        // save transaction information to AccountsDB if transaction has your wallet address
         saveTransactionToWalletIfTransactionPointsToWalletOwned(coinbase);
 
         return coinbase;
@@ -420,7 +471,7 @@ public class TransactionService {
             String transaction = rocksDB.find((String) txId, db);
             if (transaction == null) {
                 log.error("Could not find transaction {} obtained from Account DB in {}} DB", txId, db);
-                throw new MyCustomException("Transactions present in wallet not found in Transactions DB...");
+                throw new MyCustomException(String.format("Transactions present in wallet not found in %s DB...", db));
             }
 
             List<Output> outputs = new ObjectMapper().readValue(transaction, Transaction.class).getOutputs();
@@ -464,11 +515,12 @@ public class TransactionService {
      * Selectively Fetches UTXOs from a wallet for a transaction based on a specific predetermined algorithm
      *
      * @param amount         Amount to transact
-     * @param algorithm      The algorithm used to select suitable UTXOs for the transaction;
-     *                       <i>Available options:   1 = <b>OPTIMAL</b>;
-     *                       2 = <b>HIGHEST_SORTED</b>;
-     *                       3 = <b>LOWEST_SORTED</b>;
-     *                       4 = <b>RANDOM</b></i>
+     * @param algorithm      The algorithm used to select suitable UTXOs for the transaction <br><br>
+     *                       Available options:<br>
+     *                       1 = <b>OPTIMAL</b><br>
+     *                       2 = <b>HIGHEST_SORTED</b><br>
+     *                       3 = <b>LOWEST_SORTED</b><br>
+     *                       4 = <b>RANDOM</b><br>
      * @param walletAddress  Points to the Wallet from which the UTXOs are to be selected
      * @param transactionFee The transaction fee that will be charged for the transaction;
      *                       This will be added to the amount when taking into consideration the selection of UTXOs for the transaction
@@ -476,7 +528,7 @@ public class TransactionService {
      */
     public List<UTXODto> selectivelyFetchUTXOs(BigDecimal amount, Integer algorithm, String walletAddress, BigDecimal transactionFee) throws MyCustomException {
         if (amount.equals(new BigDecimal(0)))
-            throw new MyCustomException("Amount to start a transaction must be greater than 0");
+            throw new MyCustomException(String.format("Amount to start a transaction must be greater than the transaction fee set (%s)", config.getTransactionFee()));
 
         // transaction data for given wallet
         String transactions = rocksDB.find(walletAddress, "Accounts");
@@ -485,7 +537,7 @@ public class TransactionService {
 
         List<UTXODto> allUTXOs;
         try {
-            allUTXOs = retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), "Transactions"); // Note that for a UTXO to be used, it must have been mined
+            allUTXOs = retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), "Transactions"); // Note: for a UTXO to be used, it must have been mined
         } catch (JsonProcessingException e) {
             log.error("Error while parsing transaction info in DB to <Transaction.class> OR utxo info to JSON");
             e.printStackTrace();
@@ -534,7 +586,7 @@ public class TransactionService {
     private void saveTransactionToWalletIfTransactionPointsToWalletOwned(Transaction tx) throws MyCustomException {
         // fetch list of Transaction Details in all Wallet
         Map<String, String> utxoInfo = rocksDB.getList("Accounts");
-        if (utxoInfo == null) {
+        if (CollectionUtils.isEmpty(utxoInfo)) {
             log.error("No content found in Accounts DB...");
             throw new MyCustomException("No content found in Accounts DB...");
         }

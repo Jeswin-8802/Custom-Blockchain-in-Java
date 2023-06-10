@@ -31,4 +31,7 @@ public class DodoCommonConfig {
 
     @Value("${DEFAULT_TRANSACTION_FEE:0.0001}")
     private BigDecimal transactionFee;
+
+    @Value("${DEFAULT_OUTPUT_NUM:1}")
+    private Integer defaultOutputDivisions;
 }

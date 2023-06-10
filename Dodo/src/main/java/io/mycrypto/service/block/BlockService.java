@@ -90,7 +90,7 @@ public class BlockService {
         }
 
         // creating coinbase transaction
-        Transaction coinbase = transactionService.constructCoinbaseTransaction(info, transactions);
+        Transaction coinbase = transactionService.constructCoinbaseTransaction(info, false, transactions);
         transactions.add(0, coinbase);
         block.setTransactions(transactions);
 
@@ -138,7 +138,7 @@ public class BlockService {
         }
 
         // creating coinbase transaction
-        Transaction coinbase = transactionService.constructCoinbaseTransactionForGenesisBlock(info);
+        Transaction coinbase = transactionService.constructCoinbaseTransaction(info, true, new ArrayList<>());
 
         genesis.setTransactions(List.of(coinbase));
         List<String> transactionIds = new ArrayList<>();

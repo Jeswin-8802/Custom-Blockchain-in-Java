@@ -32,8 +32,8 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     private final static String DB_NAME_ACCOUNT = "Accounts"; // (as JSON) 👇
     /* Wallet Address ==>
     {
-        TransactionId1: VOUT,
-        TransactionId2: VOUT,
+        TransactionId1: "VOUT_1,VOUT_2",
+        TransactionId2: "VOUT_1",
         .
         .
         .

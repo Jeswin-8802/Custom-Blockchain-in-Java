@@ -24,6 +24,17 @@ public class MakeTransactionDto {
     @JsonProperty("utxo-selection-algorithm")
     Integer algorithm;
 
+    /*** for the below 2 fields, a single number denotes the number of parts the output must be divided into
+     * whereas when given as a ratio, it will divide those parts evenly into the ratios defined
+     * for Example:
+     * when given as "3", the output gets evenly divided into 3 outputs of equal amounts
+     * when given as "1:2:3", the output gets divided into 3 outputs with its amounts in the ratio specified
+    ***/
+    @JsonProperty(value = "to-output-parts")
+    String toOutputParts;
+    @JsonProperty(value = "receiving-output-parts")
+    String receivingOutputParts; // is overriden by the value given in config.properties unless explicitly specified
+
     @JsonProperty("message")
     String message;
 }
