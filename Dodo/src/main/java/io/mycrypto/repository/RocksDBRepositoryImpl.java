@@ -9,7 +9,7 @@ import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -77,17 +77,11 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
             else
                 log.info(String.format("Unable to create directory \\%s\\ ...", OUTER_RESOURCE_FOLDER));
         }
-
         createDB(options, DB_NAME_BLOCKCHAIN, "Blockchain");
-
         createDB(options, DB_NAME_TRANSACTIONS, "Transactions"); // transaction sent by you as well as that reachieved by you
-
         createDB(options, DB_NAME_TRANSACTIONS_POOL, "Transactions Pool"); // all transactions
-
         createDB(options, DB_NAME_NODES, "Node Information");
-
         createDB(options, DB_NAME_WALLETS, "Wallet Information");
-
         createDB(options, DB_NAME_ACCOUNT, "Coins/UTXOs for Wallet");
     }
 

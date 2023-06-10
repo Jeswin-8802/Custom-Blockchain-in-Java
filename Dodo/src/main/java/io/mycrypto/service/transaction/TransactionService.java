@@ -3,6 +3,7 @@ package io.mycrypto.service.transaction;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import io.mycrypto.config.DodoCommonConfig;
 import io.mycrypto.dto.MakeTransactionDto;
 import io.mycrypto.dto.UTXODto;
 import io.mycrypto.dto.WalletInfoDto;
@@ -20,15 +21,11 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -41,14 +38,14 @@ import java.util.*;
 @Slf4j
 @Service
 public class TransactionService {
-    @Value("${BLOCK_REWARD}")
-    private String BLOCK_REWARD;
 
-    private static final BigDecimal DEFAULT_TRANSACTION_FEE = new BigDecimal("0.0001");
-    // refer : https://www.baeldung.com/cs/subset-of-numbers-closest-to-target
-    private static final String OPTIMIZED = "OPTIMIZED"; // Meet In the Middle Approach; Selects the UTXOs whose sum closest represents a target amount
+    @Autowired
+    DodoCommonConfig config;
 
     // AVAILABLE ALGORITHMS --------------------------------------
+
+    // refer : https://www.baeldung.com/cs/subset-of-numbers-closest-to-target
+    private static final String OPTIMIZED = "OPTIMIZED"; // Meet In the Middle Approach; Selects the UTXOs whose sum closest represents a target amount
     private static final String HIGHEST_SORTED = "HIGHEST_SORTED"; // trivial
     private static final String LOWEST_SORTED = "LOWEST_SORTED"; // trivial
     private static final String RANDOM = "RANDOM"; // trivial
@@ -59,12 +56,6 @@ public class TransactionService {
     }
     // -----------------------------------------------------------
 
-    @Value("${TRANSACTIONS_COUNT_LOWER_LIMIT}")
-    private Integer TRANSACTIONS_COUNT_LOWER_LIMIT;
-
-    @Value("${TRANSACTIONS_COUNT_UPPER_LIMIT}")
-    private Integer TRANSACTIONS_COUNT_UPPER_LIMIT;
-
     @Autowired
     KeyValueRepository<String, String> rocksDB;
 
@@ -74,7 +65,7 @@ public class TransactionService {
      * Fetches transaction by its ID
      *
      * @param id                      Transaction ID
-     * @param searchInTransactionPool
+     * @param searchInTransactionPool   Boolean that specifies the location for search
      * @return Transaction Information in JSONObject format
      */
     public JSONObject fetchTransaction(String id, Boolean searchInTransactionPool) throws NullPointerException {
@@ -111,22 +102,15 @@ public class TransactionService {
         Boolean processCurrencyInjectionTransaction = Boolean.FALSE;
 
         // check for if currency injection can be performed
-        try (InputStream input = new FileInputStream("C:\\Users\\WHNP83\\Documents\\GitHub\\Dodo-coin\\MyCrypto\\src\\main\\resources\\config.properties")) {
-            Properties prop = new Properties();
-            // load the properties file
-            prop.load(input);
-            if (fromInfo.getAddress().equals(prop.getProperty("ADMIN_ADDRESS")) && Integer.parseInt(prop.getProperty("INJECT_CURRENCY_IF_ADMIN")) == 1)
-                processCurrencyInjectionTransaction = Boolean.TRUE;
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
+        if (fromInfo.getAddress().equals(config.getAdminAddress()) && config.getInjectIfAdmin() == 1)
+            processCurrencyInjectionTransaction = Boolean.TRUE;
 
         List<Input> inputs = new ArrayList<>();
         List<Output> outputs = new ArrayList<>();
         BigDecimal total;
 
         if (!processCurrencyInjectionTransaction) {
-            List<UTXODto> utxos = selectivelyFetchUTXOs(requestDto.getAmount(), requestDto.getAlgorithm(), fromInfo.getAddress(), ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? DEFAULT_TRANSACTION_FEE : requestDto.getTransactionFee());
+            List<UTXODto> utxos = selectivelyFetchUTXOs(requestDto.getAmount(), requestDto.getAlgorithm(), fromInfo.getAddress(), ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? config.getTransactionFee() : requestDto.getTransactionFee());
 
             // Fetching UTXO information from AccountsDB
             // Needed for tracking the UTXO associated with an account; The UTXO used will be removed and the updated json will be put back into the AccountsDB
@@ -144,7 +128,7 @@ public class TransactionService {
                 Input input = new Input();
                 input.setTransactionId(utxoDto.getTransactionId());
                 input.setVout(utxoDto.getVout());
-                String scriptSig = constructScriptSig(fromInfo, "abcd");
+                String scriptSig = constructScriptSig(fromInfo, "abcdefg");
                 input.setScriptSig(scriptSig);
                 input.setSize((long) scriptSig.getBytes().length);
 
@@ -180,7 +164,7 @@ public class TransactionService {
             // output 2
             Output output2 = new Output();
             output2.setScriptPubKey(new ScriptPublicKey(fromInfo.getHash160(), fromInfo.getAddress()));
-            output2.setAmount(total.subtract(requestDto.getAmount()).subtract(ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? DEFAULT_TRANSACTION_FEE : requestDto.getTransactionFee()));    // total - amount - transactionFee
+            output2.setAmount(total.subtract(requestDto.getAmount()).subtract(ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? config.getTransactionFee() : requestDto.getTransactionFee()));    // total - amount - transactionFee
             output2.setN(1L);
             outputs.add(output2);
 
@@ -204,7 +188,7 @@ public class TransactionService {
 
             Output newCurrency = new Output();
             newCurrency.setScriptPubKey(new ScriptPublicKey(Utility.getHash160FromAddress(requestDto.getTo()), requestDto.getTo()));
-            newCurrency.setAmount(total.subtract(DEFAULT_TRANSACTION_FEE));
+            newCurrency.setAmount(total.subtract(config.getTransactionFee()));
             newCurrency.setN(0L);
 
             outputs.add(newCurrency);
@@ -214,7 +198,7 @@ public class TransactionService {
 
         transaction.setOutputs(outputs);
         transaction.setSpent(total);
-        transaction.setTransactionFee(ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? DEFAULT_TRANSACTION_FEE : requestDto.getTransactionFee());
+        transaction.setTransactionFee(ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? config.getTransactionFee() : requestDto.getTransactionFee());
         transaction.setMsg(Strings.isEmpty(requestDto.getMessage()) ? String.format("Transferring %s from %s to %s ...", requestDto.getAmount(), fromInfo.getAddress(), requestDto.getTo()) : requestDto.getMessage());
         transaction.calculateHash();
 
@@ -229,7 +213,7 @@ public class TransactionService {
         String methodName = "constructScriptSig(WalletInfoDto, String)";
         String signature;
         try {
-            signature = Utility.getSignedData(fromInfo.getPrivateKey(), "abcd");
+            signature = Utility.getSignedData(fromInfo.getPrivateKey(), dataToSign);
         } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException |
                  UnsupportedEncodingException e) {
             e.printStackTrace();
@@ -251,7 +235,7 @@ public class TransactionService {
         // construct Script Public Key (Locking Script)
         ScriptPublicKey script = new ScriptPublicKey(info.getHash160(), info.getAddress());
         Output output1 = new Output();
-        output1.setAmount(new BigDecimal(BLOCK_REWARD));
+        output1.setAmount(config.getBlockReward());
         output1.setN(0L);
         output1.setScriptPubKey(script);
 
@@ -280,8 +264,8 @@ public class TransactionService {
 
     public List<Transaction> retrieveAndDeleteTransactionsFromTransactionsPool() throws MyCustomException {
         // checking for if there exists enough transactions within the Transactions Pool
-        if (rocksDB.getCount("Transactions-Pool") < TRANSACTIONS_COUNT_LOWER_LIMIT)
-            throw new MyCustomException(String.format("Not enough transactions in the Transactions Pool to mine a Block; Must contain at least %s transactions", TRANSACTIONS_COUNT_LOWER_LIMIT));
+        if (rocksDB.getCount("Transactions-Pool") < config.getLowerLimitCount())
+            throw new MyCustomException(String.format("Not enough transactions in the Transactions Pool to mine a Block; Must contain at least %s transactions", config.getLowerLimitCount()));
 
         // retrieving transactions from the transaction pool
         Map<String, String> transactionsMap = rocksDB.getList("Transactions-Pool");
@@ -302,8 +286,8 @@ public class TransactionService {
         transactions.sort(Comparator.comparing(Transaction::getTransactionFee));
 
         // Taking atMost N Transactions; N is the Uppermost Limit of transactions in a block
-        if (transactions.size() > TRANSACTIONS_COUNT_UPPER_LIMIT) {
-            Long N = new Random().nextLong(TRANSACTIONS_COUNT_LOWER_LIMIT, TRANSACTIONS_COUNT_UPPER_LIMIT); // to bring in variability
+        if (transactions.size() > config.getUpperLimitCount()) {
+            long N = new Random().nextLong(config.getLowerLimitCount(), config.getUpperLimitCount()); // to bring in variability
             for (long i = transactions.size() - 1; i >= N; i--)
                 transactions.remove((int) i);
         }
@@ -352,7 +336,7 @@ public class TransactionService {
         ScriptPublicKey script = new ScriptPublicKey(info.getHash160(), info.getAddress());
 
         Output output = new Output();
-        output.setAmount(new BigDecimal(BLOCK_REWARD));
+        output.setAmount(config.getBlockReward());
         output.setN(0L);
         output.setScriptPubKey(script);
 

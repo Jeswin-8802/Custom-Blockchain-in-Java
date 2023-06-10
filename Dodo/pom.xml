@@ -5,14 +5,14 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.7.5</version>
+        <version>3.1.0</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>io</groupId>
-    <artifactId>MyCrypto</artifactId>
+    <artifactId>Dodo</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>MyCrypto</name>
-    <description>MyCrypto</description>
+    <name>Dodo</name>
+    <description>Dodo Coin</description>
     <properties>
         <java.version>19</java.version>
     </properties>
@@ -20,7 +20,7 @@
         <dependency>
             <groupId>org.rocksdb</groupId>
             <artifactId>rocksdbjni</artifactId>
-            <version>7.6.0</version>
+            <version>7.10.2</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -34,9 +34,8 @@
         <dependency>
             <groupId>org.bitcoinj</groupId>
             <artifactId>bitcoinj-core</artifactId>
-            <version>0.16.1</version>
+            <version>0.16.2</version>
         </dependency>
-
 
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -64,6 +63,7 @@
     </dependencies>
 
     <build>
+        <finalName>Dodo</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

@@ -56,6 +56,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> constructResponseForFetchBlockContent(String hash) {
+        log.info("-------------- START FetchBlockContent [GET] API --------------");
         try {
             return ResponseEntity.ok(blockService.fetchBlockContent(hash));
         } catch (NullPointerException e) {
@@ -78,6 +79,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> constructResponseForFetchBlockContentByHeight(String height) {
+        log.info("-------------- START FetchBlockContentByHeight [GET] API --------------");
         try {
             return ResponseEntity.ok(blockService.fetchBlockContentByHeight(Integer.parseInt(height)));
         } catch (FileNotFoundException e) {
@@ -98,7 +100,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> createGenesisBlock(String walletName) {
-
+        log.info("-------------- START CreateGenesisBlock [GET] API --------------");
         File base = new File(BLOCKCHAIN_STORAGE_PATH);
         if (base.isDirectory())
             log.info("The directory \"blockchain\" found... \nAdding blocks...");
@@ -138,6 +140,7 @@ public class ResponseService {
     }
 
     public ResponseEntity<Object> mineBlock(String walletName) {
+        log.info("-------------- START MineBlock [GET] API --------------");
         // check for if genesis block exists
         List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
         if (ObjectUtils.isEmpty(files)) {
@@ -167,6 +170,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> createWallet(CreateWalletRequestDto request) {
+        log.info("-------------- START CreateWallet [POST] API --------------");
         // validation
         if (Strings.isEmpty(request.getWalletName())) {
             log.error("Wallet Name cannot be empty");
@@ -265,6 +269,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> fetchWalletInfo(String walletName) {
+        log.info("-------------- START FetchWalletInfo [GET] API --------------");
         String value = rocksDB.find(walletName, "Wallets");
         log.info("Name of wallet: {}", walletName);
         if (value == null) return ResponseEntity.noContent().build();
@@ -275,6 +280,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> fetchAllWallets() {
+        log.info("-------------- START FetchAllWallets [GET] API --------------");
         return ResponseEntity.ok(walletService.fetchWallets());
     }
 
@@ -285,6 +291,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> constructResponseForValidateAddress(VerifyAddressRequestDto request) {
+        log.info("-------------- START CheckAddressValidity [POST] API --------------");
         try {
             if (walletService.verifyAddress(request.getAddress(), request.getHash160()))
                 return ResponseEntity.ok(Utility.constructJsonResponse("msg", "valid"));
@@ -302,6 +309,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> constructResponseForFetchTransaction(String id, Boolean searchInTransactionPool) {
+        log.info("-------------- START FetchTransaction [GET] API --------------");
         try {
             return ResponseEntity.ok(transactionService.fetchTransaction(id, searchInTransactionPool));
         } catch (NullPointerException e) {
@@ -315,6 +323,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> fetchUTXOs(String address, String db) {
+        log.info("-------------- START FetchUTXOs [GET] API --------------");
         BigDecimal sum = new BigDecimal("0.0");
         List<UTXODto> UTXOs;
         WalletUTXOResponseDto response;
@@ -367,6 +376,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> fetchUTXOsForTransaction(String amount, Integer algorithm, String walletName, String transactionFee) {
+        log.info("-------------- START FetchUTXOsForTransaction [GET] API --------------");
         // fetching Wallet Address
         WalletInfoDto walletInfo;
         try {
@@ -410,6 +420,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> makeTransaction(MakeTransactionDto requestDto) {
+        log.info("-------------- START MakeTransaction [POST] API --------------");
         // validation for To Address
         if (Strings.isEmpty(requestDto.getTo())) {
             log.error("The field \"To\" cannot be empty");
@@ -456,11 +467,17 @@ public class ResponseService {
     }
 
     public Long getTransactionsCount() {
-        return rocksDB.getCount("Transactions");
+        log.info("-------------- START GetTransactionsCount [GET] API --------------");
+        long count = rocksDB.getCount("Transactions");
+        log.info("TransactionsCount => {}", count);
+        return count;
     }
 
     public Long getTransactionsCountInTransactionsPool() {
-        return rocksDB.getCount("Transactions-Pool");
+        log.info("-------------- START GetTransactionsCountInTransactionsPool [GET] API --------------");
+        long count = rocksDB.getCount("Transactions-Pool");
+        log.info("TransactionsCountInTransactionsPool => {}", count);
+        return count;
     }
 
     // ----------------------------------------------------------------------------------------------------------------------------------
@@ -473,6 +490,7 @@ public class ResponseService {
      * @return Response Object
      */
     public ResponseEntity<Object> delete(String key, String db) {
+        log.info("-------------- START Delete [DELETE] API --------------");
         if (!rocksDB.delete(key, db))
             return ResponseEntity.badRequest().build();
         return ResponseEntity.ok().build();

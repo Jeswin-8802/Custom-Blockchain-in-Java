@@ -20,6 +20,6 @@ public class MyCustomException extends Exception {
     }
 
     public JSONObject getMessageAsJSONString() {
-        return Utility.constructJsonResponse("err", this.errorMessage);
+        return Utility.constructJsonResponse("msg", this.errorMessage);
     }
 }
