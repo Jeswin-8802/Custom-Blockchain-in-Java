@@ -2,8 +2,10 @@ package io.mycrypto.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.mycrypto.config.DodoCommonConfig;
 import io.mycrypto.dto.*;
 import io.mycrypto.entity.Block;
+import io.mycrypto.entity.Transaction;
 import io.mycrypto.exception.MyCustomException;
 import io.mycrypto.repository.KeyValueRepository;
 import io.mycrypto.service.block.BlockService;
@@ -19,7 +21,6 @@ import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
 import java.io.File;
@@ -45,6 +46,8 @@ public class ResponseService {
     WalletService walletService;
     @Autowired
     TransactionService transactionService;
+    @Autowired
+    DodoCommonConfig config;
     @Autowired
     KeyValueRepository<String, String> rocksDB;
 
@@ -190,11 +193,21 @@ public class ResponseService {
             assert value != null;
             rocksDB.save(value.getAddress(), request.getWalletName(), "Nodes");
             rocksDB.save(value.getAddress(), "EMPTY", "Accounts");
+
+            // add early adopter gift dodos if applicable
+            if (rocksDB.getCount("Nodes") <= config.getUserSaturationLimit()) {
+                Transaction tnx = transactionService.addEarlyAdopterReward(new ObjectMapper().readValue(new ObjectMapper().writeValueAsString(value), WalletInfoDto.class));
+                log.info("Currency added as reward => {}", new ObjectMapper().writeValueAsString(tnx));
+            }
             return constructWalletResponseFromInfo(new ObjectMapper().writeValueAsString(value));
         } catch (JsonProcessingException e) {
             log.error("Error while trying to parse WalletInfoDto to JSON...");
             e.printStackTrace();
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Encountered an error while parsing..."));
+        } catch (MyCustomException e) {
+            log.error("Error while constructing script signature...");
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Unable to construct script signature when adding the early adopter reward..."));
         }
     }
 
@@ -305,7 +318,7 @@ public class ResponseService {
 
     /**
      * @param id                      The Transaction ID
-     * @param searchInTransactionPool
+     * @param searchInTransactionPool   Boolean value which determines if the search should be performed in the Transactions-Pool DB if true or Transactions DB if false
      * @return Response Object
      */
     public ResponseEntity<Object> constructResponseForFetchTransaction(String id, Boolean searchInTransactionPool) {
@@ -399,7 +412,7 @@ public class ResponseService {
 
         List<UTXODto> UTXOs;
         try {
-            UTXOs = transactionService.selectivelyFetchUTXOs(new BigDecimal(amount), algorithm, walletInfo.getAddress(), Strings.isEmpty(transactionFee) ? new BigDecimal(0) : new BigDecimal(transactionFee));
+            UTXOs = transactionService.selectivelyFetchUTXOs(new BigDecimal(amount), algorithm, walletInfo.getAddress(), Strings.isEmpty(transactionFee) ? config.getTransactionFee() : new BigDecimal(transactionFee));
         } catch (MyCustomException e) {
             return ResponseEntity.badRequest().body(e.getMessageAsJSONString());
         }
