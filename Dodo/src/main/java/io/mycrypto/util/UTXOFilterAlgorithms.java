@@ -56,20 +56,26 @@ public class UTXOFilterAlgorithms {
 
         log.info("Amount to add upto : {}", amount);
         for (StoreUtxoSumInfo utxoSumInfo : first) {
-            // if utxoSumInfo > amount and utxoSumInfo < result
+            // if utxoSumInfo >= amount and utxoSumInfo < result
             if (utxoSumInfo.getSum().compareTo(amount) >= 0 && utxoSumInfo.getSum().compareTo(result.getSum()) < 0) {
+                if (result.getSum().compareTo(utxoSumInfo.getSum()) != 0)
+                    log.info("UtxoSumInfo optimisation : {}", utxoSumInfo);
                 result.setIndexes(utxoSumInfo.getIndexes());
                 result.setSum(utxoSumInfo.getSum());
             } else {
                 StoreUtxoSumInfo temp = binarySearchOnUtxoInfoList(second, amount.subtract(utxoSumInfo.getSum()) /* (amount - sum of first subset sum combination sequence from the first list) */);
                 // if temp > 0 and (temp + utxoSumInfo) < result
                 if (temp.getSum().compareTo(new BigDecimal(0)) > 0 && (temp.getSum().add(utxoSumInfo.getSum())).compareTo(result.getSum()) < 0) {
+                    BigDecimal sum = utxoSumInfo.getSum().add(temp.getSum()); // temp + utxoSumInfo
+                    boolean print = result.getSum().compareTo(sum) != 0;
+
                     utxoSumInfo.getIndexes().addAll(temp.getIndexes());
                     result.setIndexes(utxoSumInfo.getIndexes());
                     result.setSum(utxoSumInfo.getSum().add(temp.getSum()));
+                    if (print)
+                        log.info("UtxoSumInfo optimisation : {}", result);
                 }
             }
-            log.info("UtxoSumInfo optimisation : {}", result);
         }
 
         List<UTXODto> filteredUTXOs = new ArrayList<>();
@@ -91,7 +97,7 @@ public class UTXOFilterAlgorithms {
      * @return A list of All possible subset sum combinations stored as <StoreUtxoSumInfo.class>
      */
     public static List<StoreUtxoSumInfo> generate(List<UTXODto> utxos, int i, int end, StoreUtxoSumInfo utxoSumInfo, BigDecimal targetAmount) {
-        if (i == end)
+        if (i == end || utxoSumInfo.getSum().compareTo(targetAmount) >= 0)
             return List.of(utxoSumInfo);
 
         List<Integer> indexes = new ArrayList<>(utxoSumInfo.getIndexes());
@@ -100,10 +106,9 @@ public class UTXOFilterAlgorithms {
                 .indexes(indexes)
                 .sum(utxoSumInfo.getSum().add(utxos.get(i).getAmount()))
                 .build();
+
         List<StoreUtxoSumInfo> pick = generate(utxos, i + 1, end, newStorageObject, targetAmount);
-
         List<StoreUtxoSumInfo> leave = generate(utxos, i + 1, end, utxoSumInfo, targetAmount);
-
         List<StoreUtxoSumInfo> mergedList = new ArrayList<>();
         mergedList.addAll(pick);
         mergedList.addAll(leave);
@@ -119,7 +124,6 @@ public class UTXOFilterAlgorithms {
      * @return UTXO subset sum Info with an amount closest to the key
      */
     public static StoreUtxoSumInfo binarySearchOnUtxoInfoList(List<StoreUtxoSumInfo> utxoInfoList, BigDecimal key) {
-
         int low = 0;
         int high = utxoInfoList.size() - 1;
         int mid = 0;

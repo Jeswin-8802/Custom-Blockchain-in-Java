@@ -188,21 +188,20 @@ public class TransactionService {
             String scriptSig = constructScriptSig(fromInfo, "abcd");
             input.setScriptSig(scriptSig);
             input.setSize((long) scriptSig.getBytes().length);
-
             inputs.add(input);
-
             transaction.setInputs(inputs);
 
             total = requestDto.getAmount();
 
-            Output newCurrency = new Output();
-            newCurrency.setScriptPubKey(new ScriptPublicKey(Utility.getHash160FromAddress(requestDto.getTo()), requestDto.getTo()));
-            newCurrency.setAmount(total.subtract(config.getTransactionFee()));
-            newCurrency.setN(0L);
-
-            outputs.add(newCurrency);
-
-            transaction.setNumOutputs(1);
+            int outputNum = 0;
+            outputNum += splitAndConstructOutputs(
+                    requestDto,
+                    outputs,
+                    new ScriptPublicKey(Utility.getHash160FromAddress(requestDto.getTo()), requestDto.getTo()),
+                    false,
+                    total,
+                    outputNum);
+            transaction.setNumOutputs(outputNum);
         }
 
         transaction.setOutputs(outputs);
@@ -214,6 +213,40 @@ public class TransactionService {
         saveTransaction(transaction, "Transactions-Pool");
 
         // Note: the new transaction will not be added to Accounts DB until it gets mined
+
+        return transaction;
+    }
+
+    public Transaction addEarlyAdopterReward(WalletInfoDto info) throws MyCustomException {
+        Transaction transaction = new Transaction(config.getAdminAddress(), info.getAddress());
+
+        Input input = new Input();
+        input.setTransactionId("");
+        input.setVout(-1L);
+        String scriptSig = constructScriptSig(info, "Early Adopter Reward Dodos");
+        input.setScriptSig(scriptSig);
+        input.setSize((long) scriptSig.getBytes().length);
+        transaction.setInputs(List.of(input));
+        transaction.setNumInputs(1);
+
+        List<Output> outputs = new ArrayList<>();
+        for (int i = 0; i < config.getDefaultOutputDivisions(); i++) {
+            Output output = new Output();
+            output.setScriptPubKey(new ScriptPublicKey(info.getHash160(), info.getAddress()));
+            output.setAmount(config.getBlockReward().divide(new BigDecimal(config.getDefaultOutputDivisions())));
+            output.setN((long) i);
+            outputs.add(output);
+        }
+        transaction.setOutputs(outputs);
+        transaction.setNumOutputs(config.getDefaultOutputDivisions());
+
+        transaction.setSpent(new BigDecimal("-1.0").multiply(config.getBlockReward()));
+        transaction.setTransactionFee(config.getTransactionFee());
+        transaction.setMsg("Early adopters' reward dodos");
+        transaction.calculateHash();
+
+        saveTransaction(transaction, "Transactions");
+        saveTransactionToWalletIfTransactionPointsToWalletOwned(transaction);
 
         return transaction;
     }
@@ -408,7 +441,7 @@ public class TransactionService {
     /**
      * @param tx Transaction Object holding all the Transaction Information
      */
-    public void saveTransaction(Transaction tx, String DB) throws MyCustomException {
+    private void saveTransaction(Transaction tx, String DB) throws MyCustomException {
         String methodName = "saveTransaction(Transaction, String)";
         String json;
         try {
@@ -564,7 +597,7 @@ public class TransactionService {
         for (UTXODto utxo : allUTXOs)
             total = total.add(utxo.getAmount());
         if (total.compareTo(amount.add(transactionFee)) < 0)
-            throw new MyCustomException(String.format("Not enough balance to make up an amount (may or may not include transaction fee) >= %s; current balance: %s", amount, total));
+            throw new MyCustomException(String.format("Not enough balance to make up an amount (may or may not include transaction fee) >= %s; current balance: %s", amount.add(transactionFee), total));
         if (allUTXOs.size() == 1)
             return allUTXOs;
 

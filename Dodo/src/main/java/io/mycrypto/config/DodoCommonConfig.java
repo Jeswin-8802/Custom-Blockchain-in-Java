@@ -26,7 +26,7 @@ public class DodoCommonConfig {
     @Value("${INJECT_CURRENCY_IF_ADMIN:0}")
     private Integer injectIfAdmin;
 
-    @Value("${USER_SATURATION_LIMIT}")
+    @Value("${USER_REWARD_LIMIT}")
     private Integer userSaturationLimit;
 
     @Value("${DEFAULT_TRANSACTION_FEE:0.0001}")
