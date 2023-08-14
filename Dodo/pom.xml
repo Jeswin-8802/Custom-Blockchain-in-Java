@@ -14,13 +14,13 @@
     <name>Dodo</name>
     <description>Dodo Coin</description>
     <properties>
-        <java.version>19</java.version>
+        <java.version>17</java.version>
     </properties>
     <dependencies>
         <dependency>
             <groupId>org.rocksdb</groupId>
             <artifactId>rocksdbjni</artifactId>
-            <version>7.10.2</version>
+            <version>8.3.2</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -29,6 +29,19 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-websocket</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-messaging</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>de.javawi.jstun</groupId>
+            <artifactId>jstun</artifactId>
+            <version>0.7.4</version>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.bitcoinj/bitcoinj-core -->
         <dependency>
