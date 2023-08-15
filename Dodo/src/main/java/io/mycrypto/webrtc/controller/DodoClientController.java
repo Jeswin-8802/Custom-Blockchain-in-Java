@@ -10,6 +10,7 @@ import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandler;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.client.WebSocketClient;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
@@ -35,16 +36,22 @@ public class DodoClientController implements StompSessionHandler {
     @Getter
     Map<String, StompSession.Subscription> subscriptions = new HashMap<>();
 
-    public void connect(String URL) {
-        serverURL = URL;
-//        WebSocketContainer container = ContainerProvider.getWebSocketContainer();
-//        StandardWebSocketClient client = new StandardWebSocketClient(container);
+    public void connect(String url) {
+        serverURL = url;
         WebSocketClient client = new StandardWebSocketClient();
         WebSocketStompClient stompClient = new WebSocketStompClient(client);
         stompClient.setMessageConverter(new MappingJackson2MessageConverter());
+
+        WebSocketHttpHeaders webSocketHeaders = new WebSocketHttpHeaders();
+        StompHeaders stompHeaders = new StompHeaders();
+
         try {
             stompSession = stompClient
-                    .connect(URL, this)
+                    .connectAsync(
+                            url,
+                            webSocketHeaders,
+                            stompHeaders,
+                            this)
                     .get();
         } catch (Exception e) {
             log.error("Connection failed."); // TODO: Do some failover and implement retry patterns.

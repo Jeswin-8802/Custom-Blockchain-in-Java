@@ -16,5 +16,5 @@ public enum DbName {
         .
     }
      */
-    WEBRTC; // used to store information received from peer or server
+    WEBRTC // used to store information received from peer or server
 }
