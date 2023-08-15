@@ -22,7 +22,7 @@ import java.util.Map;
 @Controller
 public class DodoClientController implements StompSessionHandler {
 
-    StompSession stompSession = null;
+    private StompSession stompSession = null;
 
     /**
      *  URL of server being connected to

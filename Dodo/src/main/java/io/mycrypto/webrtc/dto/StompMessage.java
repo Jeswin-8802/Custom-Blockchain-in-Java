@@ -6,14 +6,22 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
-@Slf4j
 @Data
+@Slf4j
 public class StompMessage {
     private String id;
-    private String type;
+    private String from;
+    private MessageType type;
     private String message;
     private LocalDate date;
+
+    public StompMessage() {
+        id = String.valueOf(UUID.randomUUID());
+        message = "";
+        date = LocalDate.now();
+    }
 
     @Override
     public String toString() {
@@ -24,12 +32,14 @@ public class StompMessage {
             return String.format("""
                     {
                         "id": %s,
+                        "from": %s,
                         "type": %s,
                         "payload": %s,
                         "date": %s
                     }
                 """,
                     id,
+                    from,
                     type,
                     mapper.writerWithDefaultPrettyPrinter().writeValueAsString(json),
                     date

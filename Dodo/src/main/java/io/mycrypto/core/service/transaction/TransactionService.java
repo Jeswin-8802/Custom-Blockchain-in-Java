@@ -12,6 +12,7 @@ import io.mycrypto.core.entity.Output;
 import io.mycrypto.core.entity.ScriptPublicKey;
 import io.mycrypto.core.entity.Transaction;
 import io.mycrypto.core.exception.MyCustomException;
+import io.mycrypto.core.repository.DbName;
 import io.mycrypto.core.repository.KeyValueRepository;
 import io.mycrypto.core.util.UTXOFilterAlgorithms;
 import io.mycrypto.core.util.Utility;
@@ -33,6 +34,8 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SignatureException;
 import java.util.*;
+
+import static io.mycrypto.core.repository.DbName.*;
 
 @PropertySource("classpath:config.properties")
 @Slf4j
@@ -69,7 +72,7 @@ public class TransactionService {
      * @return Transaction Information in JSONObject format
      */
     public JSONObject fetchTransaction(String id, Boolean searchInTransactionPool) throws NullPointerException {
-        String json = rocksDB.find(id, searchInTransactionPool ? "Transactions-Pool" : "Transactions");
+        String json = rocksDB.find(id, searchInTransactionPool ? TRANSACTIONS_POOL : TRANSACTIONS);
         try {
             if (json != null)
                 return (JSONObject) new JSONParser().parse(json);
@@ -116,7 +119,7 @@ public class TransactionService {
             // Needed for tracking the UTXO associated with an account; The UTXO used will be removed and the updated json will be put back into the AccountsDB
             JSONObject transactionJSON;
             try {
-                transactionJSON = new ObjectMapper().readValue(rocksDB.find(fromInfo.getAddress(), "Accounts"), JSONObject.class);
+                transactionJSON = new ObjectMapper().readValue(rocksDB.find(fromInfo.getAddress(), ACCOUNTS), JSONObject.class);
             } catch (JsonProcessingException e) {
                 e.printStackTrace();
                 throw new MyCustomException("Parse Error...");
@@ -141,9 +144,9 @@ public class TransactionService {
             log.info("{}::----------------------- {}", methodName, transactionJSON);
             // saving updated transaction UTXO information in Accounts DB
             if (transactionJSON.isEmpty())
-                rocksDB.save(fromInfo.getAddress(), "EMPTY", "Accounts");
+                rocksDB.save(fromInfo.getAddress(), "EMPTY", ACCOUNTS);
             else
-                rocksDB.save(fromInfo.getAddress(), transactionJSON.toJSONString(), "Accounts");
+                rocksDB.save(fromInfo.getAddress(), transactionJSON.toJSONString(), ACCOUNTS);
             transaction.setInputs(inputs);
 
             total = new BigDecimal(0);
@@ -210,7 +213,7 @@ public class TransactionService {
         transaction.setMsg(Strings.isEmpty(requestDto.getMessage()) ? String.format("Transferring %s from %s to %s ...", requestDto.getAmount(), fromInfo.getAddress(), requestDto.getTo()) : requestDto.getMessage());
         transaction.calculateHash();
 
-        saveTransaction(transaction, "Transactions-Pool");
+        saveTransaction(transaction, TRANSACTIONS_POOL);
 
         // Note: the new transaction will not be added to Accounts DB until it gets mined
 
@@ -245,7 +248,7 @@ public class TransactionService {
         transaction.setMsg("Early adopters' reward dodos");
         transaction.calculateHash();
 
-        saveTransaction(transaction, "Transactions");
+        saveTransaction(transaction, TRANSACTIONS);
         saveTransactionToWalletIfTransactionPointsToWalletOwned(transaction);
 
         return transaction;
@@ -325,11 +328,11 @@ public class TransactionService {
 
     public List<Transaction> retrieveAndDeleteTransactionsFromTransactionsPool() throws MyCustomException {
         // checking for if there exists enough transactions within the Transactions Pool
-        if (rocksDB.getCount("Transactions-Pool") < config.getLowerLimitCount())
+        if (rocksDB.getCount(TRANSACTIONS_POOL) < config.getLowerLimitCount())
             throw new MyCustomException(String.format("Not enough transactions in the Transactions Pool to mine a Block; Must contain at least %s transactions", config.getLowerLimitCount()));
 
         // retrieving transactions from the transaction pool
-        Map<String, String> transactionsMap = rocksDB.getList("Transactions-Pool");
+        Map<String, String> transactionsMap = rocksDB.getList(TRANSACTIONS_POOL);
 
         // converting transactions from JSON String to <Transaction.class>
         List<Transaction> transactions = new ArrayList<>();
@@ -355,7 +358,7 @@ public class TransactionService {
 
         // fetch list of Transaction Details in all Wallet
         // to be used below
-        Map<String, String> info = rocksDB.getList("Accounts");
+        Map<String, String> info = rocksDB.getList(ACCOUNTS);
         if (info == null) {
             log.error("No content found in Accounts DB...");
             throw new MyCustomException("No content found in Accounts DB...");
@@ -363,7 +366,7 @@ public class TransactionService {
 
         // removing the transactions from the Transactions-PoolDB and adding to TransactionsDB
         for (Transaction tx: transactions) {
-            rocksDB.delete(tx.getTransactionId(), "Transactions-Pool");
+            rocksDB.delete(tx.getTransactionId(), TRANSACTIONS_POOL);
 
             // save transaction information to AccountsDB if transaction has your wallet address
 
@@ -373,7 +376,7 @@ public class TransactionService {
                     addTransactionToAccounts(out.getScriptPubKey().getAddress(), tx.getTransactionId(), out.getN());
             }
 
-            saveTransaction(tx, "Transactions");
+            saveTransaction(tx, TRANSACTIONS);
         }
 
         return transactions;
@@ -429,7 +432,7 @@ public class TransactionService {
         coinbase.setMsg(forGenesisBlock ? "The first and only transaction within the genesis block..." : "COINBASE...");
         coinbase.calculateHash(); // calculates and sets transactionId
 
-        saveTransaction(coinbase, "Transactions");
+        saveTransaction(coinbase, TRANSACTIONS);
         // saving to Transactions DB and not to Transactions-Pool DB for the time being until network broadcast has been implemented
         // TODO: save to Transactions-Pool until network broadcast is brought
 
@@ -441,7 +444,7 @@ public class TransactionService {
     /**
      * @param tx Transaction Object holding all the Transaction Information
      */
-    private void saveTransaction(Transaction tx, String DB) throws MyCustomException {
+    private void saveTransaction(Transaction tx, DbName DB) throws MyCustomException {
         String methodName = "saveTransaction(Transaction, String)";
         String json;
         try {
@@ -470,7 +473,7 @@ public class TransactionService {
      * @param vout    The VOUT value for the Output in a Transaction
      */
     void addTransactionToAccounts(String address, String txId, Long vout) throws MyCustomException {
-        String existingTransactions = rocksDB.find(address, "Accounts");
+        String existingTransactions = rocksDB.find(address, ACCOUNTS);
 
         JSONObject transactions;
         if (!existingTransactions.equals("EMPTY")) {
@@ -488,7 +491,7 @@ public class TransactionService {
             transactions.put(txId, ((String)transactions.get(txId)).concat("," + vout.toString()));
         else
             transactions.put(txId, vout.toString());
-        rocksDB.save(address, transactions.toJSONString(), "Accounts");
+        rocksDB.save(address, transactions.toJSONString(), ACCOUNTS);
     }
 
 
@@ -498,7 +501,7 @@ public class TransactionService {
      * @param transactions A list of all (transactionId, VOUT) for a given wallet
      * @return A list of UTXOs liked to a given Wallet
      */
-    public List<UTXODto> retrieveAllUTXOs(JSONObject transactions, String db) throws JsonProcessingException, MyCustomException {
+    public List<UTXODto> retrieveAllUTXOs(JSONObject transactions, DbName db) throws JsonProcessingException, MyCustomException {
         List<UTXODto> result = new ArrayList<>();
         for (Object txId : transactions.keySet()) {
             String transaction = rocksDB.find((String) txId, db);
@@ -564,13 +567,13 @@ public class TransactionService {
             throw new MyCustomException(String.format("Amount to start a transaction must be greater than the transaction fee set (%s)", config.getTransactionFee()));
 
         // transaction data for given wallet
-        String transactions = rocksDB.find(walletAddress, "Accounts");
+        String transactions = rocksDB.find(walletAddress, ACCOUNTS);
         if (transactions.equals("EMPTY"))
             throw new MyCustomException(String.format("No transaction data found for wallet with address: %s", walletAddress));
 
         List<UTXODto> allUTXOs;
         try {
-            allUTXOs = retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), "Transactions"); // Note: for a UTXO to be used, it must have been mined
+            allUTXOs = retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), TRANSACTIONS); // Note: for a UTXO to be used, it must have been mined
         } catch (JsonProcessingException e) {
             log.error("Error while parsing transaction info in DB to <Transaction.class> OR utxo info to JSON");
             e.printStackTrace();
@@ -618,7 +621,7 @@ public class TransactionService {
 
     private void saveTransactionToWalletIfTransactionPointsToWalletOwned(Transaction tx) throws MyCustomException {
         // fetch list of Transaction Details in all Wallet
-        Map<String, String> utxoInfo = rocksDB.getList("Accounts");
+        Map<String, String> utxoInfo = rocksDB.getList(ACCOUNTS);
         if (CollectionUtils.isEmpty(utxoInfo)) {
             log.error("No content found in Accounts DB...");
             throw new MyCustomException("No content found in Accounts DB...");

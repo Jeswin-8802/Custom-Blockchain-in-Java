@@ -7,6 +7,7 @@ import io.mycrypto.core.dto.*;
 import io.mycrypto.core.entity.Block;
 import io.mycrypto.core.entity.Transaction;
 import io.mycrypto.core.exception.MyCustomException;
+import io.mycrypto.core.repository.DbName;
 import io.mycrypto.core.service.block.BlockService;
 import io.mycrypto.core.repository.KeyValueRepository;
 import io.mycrypto.core.service.transaction.TransactionService;
@@ -28,6 +29,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
+
+import static io.mycrypto.core.repository.DbName.*;
 
 @Service
 @Slf4j
@@ -189,13 +192,13 @@ public class ResponseService {
 
         log.info("\n {}", request.getWalletName());
         try {
-            rocksDB.save(request.getWalletName(), new ObjectMapper().writeValueAsString(value), "Wallets");
+            rocksDB.save(request.getWalletName(), new ObjectMapper().writeValueAsString(value), WALLETS);
             assert value != null;
-            rocksDB.save(value.getAddress(), request.getWalletName(), "Nodes");
-            rocksDB.save(value.getAddress(), "EMPTY", "Accounts");
+            rocksDB.save(value.getAddress(), request.getWalletName(), NODES);
+            rocksDB.save(value.getAddress(), "EMPTY", ACCOUNTS);
 
             // add early adopter gift dodos if applicable
-            if (rocksDB.getCount("Nodes") <= config.getUserSaturationLimit()) {
+            if (rocksDB.getCount(NODES) <= config.getUserSaturationLimit()) {
                 Transaction tnx = transactionService.addEarlyAdopterReward(new ObjectMapper().readValue(new ObjectMapper().writeValueAsString(value), WalletInfoDto.class));
                 log.info("Currency added as reward => {}", new ObjectMapper().writeValueAsString(tnx));
             }
@@ -232,7 +235,7 @@ public class ResponseService {
 
         // calculate balance from AccountDB
 
-        String transactions = rocksDB.find(info.getAddress(), "Accounts");
+        String transactions = rocksDB.find(info.getAddress(), ACCOUNTS);
         if (transactions.equals("EMPTY"))
             response.setBalance(new BigDecimal("0.0"));
         else {
@@ -249,7 +252,7 @@ public class ResponseService {
             BigDecimal sum = new BigDecimal("0.0");
             List<UTXODto> UTXOs;
             try {
-                UTXOs = transactionService.retrieveAllUTXOs(transactionsJSON, "Transactions");
+                UTXOs = transactionService.retrieveAllUTXOs(transactionsJSON, TRANSACTIONS);
             } catch (JsonProcessingException e) {
                 log.error("Error while parsing data in Transaction DB to an object of class <Transaction>");
                 e.printStackTrace();
@@ -283,7 +286,7 @@ public class ResponseService {
      */
     public ResponseEntity<Object> fetchWalletInfo(String walletName) {
         log.info("-------------- START FetchWalletInfo [GET] API --------------");
-        String value = rocksDB.find(walletName, "Wallets");
+        String value = rocksDB.find(walletName, WALLETS);
         log.info("Name of wallet: {}", walletName);
         if (value == null) return ResponseEntity.noContent().build();
         return constructWalletResponseFromInfo(value);
@@ -341,24 +344,29 @@ public class ResponseService {
         List<UTXODto> UTXOs;
         WalletUTXOResponseDto response;
         try {
-            String transactions = rocksDB.find(address, "Accounts");
+            String transactions = rocksDB.find(address, ACCOUNTS);
 
             if (Strings.isEmpty(transactions) || transactions.equals("EMPTY")) {
                 log.error(String.format("No transaction(s) found with address: %s", address));
                 return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", String.format("No transaction(s) found with address: %s", address)));
             }
+            DbName dbName = null;
+            for (DbName name: DbName.class.getEnumConstants())
+                if (db.equalsIgnoreCase(name.toString()))
+                    dbName = name;
 
             // validate db name
-            if (!db.equals("Transactions-Pool") && !db.equals("Transactions"))
+            assert dbName != null;
+            if (!dbName.equals(TRANSACTIONS_POOL) && !dbName.equals(TRANSACTIONS))
                 return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Enter valid DB name"));
 
             try {
-                UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), db);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
+                UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), dbName);
+            } catch (JsonProcessingException exception) {
+                log.error("Error while casting UTXO info to JSONObject from AccountsDB...", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("err", "Error while casting UTXO info to JSONObject from AccountsDB..."));
-            } catch (MyCustomException e) {
-                return ResponseEntity.internalServerError().body(e.getMessageAsJSONString());
+            } catch (MyCustomException exception) {
+                return ResponseEntity.internalServerError().body(exception.getMessageAsJSONString());
             }
 
             for (UTXODto utxo : UTXOs)
@@ -394,12 +402,12 @@ public class ResponseService {
         WalletInfoDto walletInfo;
         try {
             if (Strings.isEmpty(walletName)) {
-                String info = rocksDB.find("default", "Wallets");
+                String info = rocksDB.find("default", WALLETS);
                 if (Strings.isEmpty(info))
                     return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "default wallet not found..."));
                 walletInfo = new ObjectMapper().readValue(info, WalletInfoDto.class);
             } else {
-                String info = rocksDB.find(walletName, "Wallets");
+                String info = rocksDB.find(walletName, WALLETS);
                 if (Strings.isEmpty(info))
                     return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", String.format("Wallet \"%s\" not found in WalletsDB...", walletName)));
                 walletInfo = new ObjectMapper().readValue(info, WalletInfoDto.class);
@@ -446,20 +454,20 @@ public class ResponseService {
         }
         // Using the default Wallet if the From address is empty
         if (Strings.isEmpty(requestDto.getFrom())) {
-            String defaultWalletInfo = rocksDB.find("default", "Wallets");
+            String defaultWalletInfo = rocksDB.find("default", WALLETS);
             if (Strings.isEmpty(defaultWalletInfo)) {
                 log.error("\"default\" wallet not found...");
                 return ResponseEntity.internalServerError().build();
             }
             requestDto.setFrom(defaultWalletInfo);
         } else {
-            String walletNameFromAddress = rocksDB.find(requestDto.getFrom(), "Nodes");
+            String walletNameFromAddress = rocksDB.find(requestDto.getFrom(), NODES);
             // validating from address
             if (Strings.isEmpty(walletNameFromAddress)) {
                 log.error(String.format("No wallet found with address %s", requestDto.getFrom()));
                 return ResponseEntity.badRequest().build();
             }
-            String walletInfoString = rocksDB.find(walletNameFromAddress, "Wallets");
+            String walletInfoString = rocksDB.find(walletNameFromAddress, WALLETS);
             if (Strings.isEmpty(walletInfoString)) {
                 log.error("Wallet not found in WalletDB although it was found in NodesDB");
                 return ResponseEntity.internalServerError().build();
@@ -467,7 +475,7 @@ public class ResponseService {
             requestDto.setFrom(walletInfoString);
         }
 
-        if (Strings.isEmpty(rocksDB.find(requestDto.getTo(), "Nodes"))) {
+        if (Strings.isEmpty(rocksDB.find(requestDto.getTo(), NODES))) {
             log.error("Invalid To address..");
             return ResponseEntity.badRequest().build();
         }
@@ -481,14 +489,14 @@ public class ResponseService {
 
     public Long getTransactionsCount() {
         log.info("-------------- START GetTransactionsCount [GET] API --------------");
-        long count = rocksDB.getCount("Transactions");
+        long count = rocksDB.getCount(TRANSACTIONS);
         log.info("TransactionsCount => {}", count);
         return count;
     }
 
     public Long getTransactionsCountInTransactionsPool() {
         log.info("-------------- START GetTransactionsCountInTransactionsPool [GET] API --------------");
-        long count = rocksDB.getCount("Transactions-Pool");
+        long count = rocksDB.getCount(TRANSACTIONS_POOL);
         log.info("TransactionsCountInTransactionsPool => {}", count);
         return count;
     }
@@ -502,10 +510,20 @@ public class ResponseService {
      * @param db  The Name of the DB
      * @return Response Object
      */
-    public ResponseEntity<Object> delete(String key, String db) {
+    public ResponseEntity<Object> delete(String key, DbName db) {
         log.info("-------------- START Delete [DELETE] API --------------");
         if (!rocksDB.delete(key, db))
             return ResponseEntity.badRequest().build();
+        return ResponseEntity.ok().build();
+    }
+
+    public ResponseEntity<Object> delete(String key, String db) {
+        log.info("-------------- START Delete [DELETE] API --------------");
+        // get DbName ENUM
+        for (DbName name: DbName.class.getEnumConstants())
+            if (db.equalsIgnoreCase(name.toString()))
+                if (!rocksDB.delete(key, name))
+                    return ResponseEntity.badRequest().build();
         return ResponseEntity.ok().build();
     }
 }

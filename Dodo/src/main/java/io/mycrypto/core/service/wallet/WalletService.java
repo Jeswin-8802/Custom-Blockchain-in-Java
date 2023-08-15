@@ -20,6 +20,8 @@ import org.springframework.util.CollectionUtils;
 import java.math.BigDecimal;
 import java.util.*;
 
+import static io.mycrypto.core.repository.DbName.*;
+
 @Slf4j
 @Service
 public class WalletService {
@@ -37,7 +39,7 @@ public class WalletService {
      */
     public WalletListDto fetchWallets() {
         // fetch list of wallet info to obtain all WalletNames and Addresses
-        Map<String, String> info = rocksDB.getList("Wallets");
+        Map<String, String> info = rocksDB.getList(WALLETS);
         if (info == null) {
             log.error("No content found in Wallets DB, Looks like you haven't created a wallet yet...");
             throw new RuntimeException();
@@ -58,11 +60,11 @@ public class WalletService {
             BigDecimal balance = new BigDecimal("0");
 
             // get balance from "Accounts" DB
-            String transactionDetails = rocksDB.find(temp.getAddress(), "Accounts");
+            String transactionDetails = rocksDB.find(temp.getAddress(), ACCOUNTS);
             List<UTXODto> UTXOs = null;
             if (!transactionDetails.equals("EMPTY")) {
                 try {
-                    UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactionDetails, JSONObject.class), "Transactions");
+                    UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactionDetails, JSONObject.class), TRANSACTIONS);
                 } catch (JsonProcessingException | MyCustomException e) {
                     throw new RuntimeException(e);
                 }

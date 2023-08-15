@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
+import static io.mycrypto.core.repository.DbName.*;
+
 @Slf4j
 @Service
 public class BlockService {
@@ -52,7 +54,7 @@ public class BlockService {
         Block previousBlock;
         long previousBlockHeight = 0;
         try {
-            previousBlockHeight = rocksDB.getCount("Blockchain") - 1;
+            previousBlockHeight = rocksDB.getCount(BLOCKCHAIN) - 1;
             previousBlock = new ObjectMapper().readValue(fetchBlockContentByHeight((int) previousBlockHeight).toJSONString(), Block.class);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -72,7 +74,7 @@ public class BlockService {
         // fetching wallet info to get dodo-coin address
         WalletInfoDto info;
         try {
-            String walletInfo = rocksDB.find(Strings.isEmpty(walletName) ? "default" : walletName, "Wallets");
+            String walletInfo = rocksDB.find(Strings.isEmpty(walletName) ? "default" : walletName, WALLETS);
             if (Strings.isEmpty(walletInfo)) {
                 if (Strings.isEmpty(walletName)) {
                     log.error("Wallet >> default << NOT FOUND...");
@@ -124,7 +126,7 @@ public class BlockService {
         // fetching wallet info to get dodo-coin address
         WalletInfoDto info;
         try {
-            String walletInfo = rocksDB.find(Strings.isEmpty(walletName) ? "default" : walletName, "Wallets");
+            String walletInfo = rocksDB.find(Strings.isEmpty(walletName) ? "default" : walletName, WALLETS);
             if (Strings.isEmpty(walletInfo))
                 throw new MyCustomException("Wallet not found");
             info = new ObjectMapper().readValue(walletInfo, WalletInfoDto.class);
@@ -173,7 +175,7 @@ public class BlockService {
             return json;
         }
 
-        rocksDB.save(blk.getHash(), BLOCKCHAIN_STORAGE_PATH + blockFileName + ".dat", "Blockchain");
+        rocksDB.save(blk.getHash(), BLOCKCHAIN_STORAGE_PATH + blockFileName + ".dat", BLOCKCHAIN);
 
         try {
             DataOutputStream out = new DataOutputStream(new FileOutputStream(BLOCKCHAIN_STORAGE_PATH + blockFileName + ".dat"));
@@ -197,7 +199,7 @@ public class BlockService {
      * @return JSONObject
      */
     public JSONObject fetchBlockContent(String hash) throws NullPointerException, IOException, ParseException {
-        String path = rocksDB.find(hash, "Blockchain");
+        String path = rocksDB.find(hash, BLOCKCHAIN);
         log.debug("File PATH for {} ==> {}", hash, path);
         DataInputStream in = new DataInputStream(new FileInputStream(path));
         boolean eof = false;
