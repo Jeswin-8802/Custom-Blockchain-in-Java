@@ -21,15 +21,19 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up JDK 19
+    - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
-        java-version: '19'
+        java-version: '17'
         distribution: 'temurin'
         cache: maven
-    - name: Build with Maven
+        
+    - name: Build Dodo-Api
       run:  mvn -B package --file Dodo/pom.xml
+      
+    - name: Build Dodo-Signaling-Server
+      run:  mvn -B package --file Dodo-Signaling-Server/pom.xml
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
-    - name: Update dependency graph
+    - name: Update dependency graph for Dodo-Core
       run:  mvn com.github.ferstl:depgraph-maven-plugin:4.0.1:graph --file Dodo/pom.xml -DgraphFormat=json
