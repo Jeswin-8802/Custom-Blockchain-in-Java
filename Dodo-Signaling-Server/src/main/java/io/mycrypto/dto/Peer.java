@@ -1,4 +1,4 @@
-package io.mycrypto.entity;
+package io.mycrypto.dto;
 
 import lombok.Data;
 import lombok.ToString;

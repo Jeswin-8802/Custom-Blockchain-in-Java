@@ -19,7 +19,7 @@ public class ConnectionCheckScheduler {
         this.simpUserRegistry = simpUserRegistry;
     }
 
-    @Scheduled(fixedDelay = 60000)
+    @Scheduled(fixedDelay = 120000)
     public void connectionHealthCheck() throws InterruptedException {
         if (simpUserRegistry.getUsers().isEmpty())
             msgProcessor.startPeerStateInstantiation();

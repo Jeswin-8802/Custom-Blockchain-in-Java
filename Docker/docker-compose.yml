@@ -1,0 +1,67 @@
+# docker compose up --detach
+# docker logs -follow <container>
+# docker inspect $(docker ps | grep -oP "dodo[a-z0-9\-]+$" | sort) | jq '.[] | { (.Name): [ { "ExposedPorts": (.Config.ExposedPorts | keys), "PortBindings": (.HostConfig.PortBindings | to_entries | map({(.key): .value[0].HostPort}) | add) }, (.NetworkSettings.Networks | to_entries | map({(.key): .value.IPAddress}) | add) ] }'
+
+# docker compose down
+# docker rmi dodo-peer-1 dodo-peer-2 dodo-signaling-server
+
+# https://stackoverflow.com/questions/36035595/communicating-between-docker-containers-in-different-networks-on-the-same-host
+
+name: dodo
+
+services:
+  peer-1:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+      args:
+        JAR_PATH: Dodo/target/Dodo.jar
+        PROPERTIES_PATH: Dodo/src/main/resources
+    container_name: dodo-user-1
+    networks:
+      - peer-1-network
+      - ss-network
+    ports:
+      - 8081:8080
+    depends_on:
+      - signaling-server
+    stdin_open: true
+    tty: true
+  
+  peer-2:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+      args:
+        JAR_PATH: Dodo/target/Dodo.jar
+        PROPERTIES_PATH: Dodo/src/main/resources
+    container_name: dodo-user-2
+    networks:
+      - peer-2-network
+      - ss-network
+    ports:
+      - 8082:8080
+    depends_on:
+      - signaling-server
+    stdin_open: true
+    tty: true
+  
+  signaling-server:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+      args:
+        JAR_PATH: Dodo-Signaling-Server/target/Dodo-Signaling-Server.jar
+        PROPERTIES_PATH: Dodo-Signaling-Server/src/main/resources
+    container_name: dodo-ss
+    networks:
+      - ss-network
+    ports:
+      - 8080:8080
+    stdin_open: true
+    tty: true
+
+networks:
+  peer-1-network:
+  peer-2-network:
+  ss-network:

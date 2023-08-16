@@ -59,7 +59,8 @@ public class DodoClientController implements StompSessionHandler {
     }
 
     public void sendMessage(String destination, StompMessage message) {
-        stompSession.send(destination, message);
+        if (stompSession != null)
+            stompSession.send(destination, message);
     }
 
     public boolean isConnected() {

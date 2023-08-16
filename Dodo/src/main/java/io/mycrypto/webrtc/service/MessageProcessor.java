@@ -1,10 +1,10 @@
 package io.mycrypto.webrtc.service;
 
 import io.mycrypto.core.repository.KeyValueRepository;
-import io.mycrypto.webrtc.dto.MessageType;
 import io.mycrypto.webrtc.dto.StompMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -17,20 +17,25 @@ import static io.mycrypto.core.repository.DbName.*;
 public class MessageProcessor {
 
     @Autowired
+    private SimpMessagingTemplate simpMessagingTemplate;
+
+    @Autowired(required = false)
     private KeyValueRepository<String, String> rocksDB;
 
     private Map<String, Object> peers = new HashMap<>();
 
-    public MessageProcessor() {
-        rocksDB.find(MessageType.PEERS.toString(), WEBRTC);
-    }
-
     public void processMessageFromPeer(String sessionId, String userName, StompMessage payload) {
         log.info("""
-                    "sessionId": {},
-                    "user": {},
-                    "payload": {}\s
+                \n
+                "sessionId": {},
+                "user": {},
+                "payload": {}
                 """,
-                sessionId, userName, payload);
+                sessionId, userName, payload.toString());
+        sendMessageToPeer(userName, "received");
+    }
+
+    public void sendMessageToPeer(String sendTo, String message) {
+        this.simpMessagingTemplate.convertAndSendToUser(sendTo, "/queue/reply", message);
     }
 }

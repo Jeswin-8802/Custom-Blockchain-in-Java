@@ -30,12 +30,12 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     private final static String PROJECT_FOLDER_PATH;
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
     private static final String FOLDER_TO_STORE_DB = "RocksDB";
-    private static final String PROJECT_FOLDER = "Dodo-coin";
+    private static final String PROJECT_FOLDER = "Dodo";
 
     static {
         // 4 backslashes. Java compiler turns it into \\, which regex turns into a single \
         String[] path = SystemUtils.USER_DIR.split(SystemUtils.IS_OS_WINDOWS ? "\\\\" : "/");
-        if (!path[path.length - 1].equals(PROJECT_FOLDER))
+        if (path[path.length - 1].equals(PROJECT_FOLDER))
             path = Arrays.copyOfRange(path, 0, path.length - 1);
 
         PROJECT_FOLDER_PATH = String.join(Utility.osAppender(), path);
@@ -49,6 +49,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
     @PostConstruct
     void initialize() {
+
         RocksDB.loadLibrary();
         final Options options = new Options();
         options.setCreateIfMissing(true);
