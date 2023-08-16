@@ -65,3 +65,4 @@ mvnw.cmd
 target/
 
 /RESOURCES/
+/RocksDB/
