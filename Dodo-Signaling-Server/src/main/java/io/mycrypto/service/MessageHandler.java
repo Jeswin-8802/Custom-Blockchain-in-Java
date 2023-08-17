@@ -22,5 +22,8 @@ public class MessageHandler {
                 """,
                 sessionId, userName, payload);
 
+        switch (payload.getType()) {
+
+        }
     }
 }

@@ -21,10 +21,8 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 
 @Slf4j
@@ -33,6 +31,7 @@ public class Utility {
     private static final String PRIVATE_KEY_NAME = "myPrivateKey";
     private static final String OUTER_RESOURCE_FOLDER = "RESOURCES";
     private static final String FOLDER_TO_STORE_KEYS = "KEYS";
+    private static final String PROJECT_FOLDER = "Dodo";
 
     private static final String LOCATION_TO_STORE_KEY;
 
@@ -41,7 +40,12 @@ public class Utility {
 
     static {
         Security.addProvider(new BouncyCastleProvider());
-        LOCATION_TO_STORE_KEY = SystemUtils.USER_DIR + osAppender() + OUTER_RESOURCE_FOLDER + osAppender() + FOLDER_TO_STORE_KEYS + osAppender();
+
+        // 4 backslashes. Java compiler turns it into \\, which regex turns into a single \
+        String[] path = SystemUtils.USER_DIR.split(SystemUtils.IS_OS_WINDOWS ? "\\\\" : "/");
+        if (path[path.length - 1].equals(PROJECT_FOLDER))
+            path = Arrays.copyOfRange(path, 0, path.length - 1);
+        LOCATION_TO_STORE_KEY = String.join(osAppender(), path) + osAppender() + OUTER_RESOURCE_FOLDER + osAppender() + FOLDER_TO_STORE_KEYS;
     }
 
     public static String osAppender() {
@@ -103,6 +107,7 @@ public class Utility {
         if (base.isDirectory())
             log.info("The directory \"KEYS\" found... \nAdding keys to folder");
         else {
+            log.info("{}", LOCATION_TO_STORE_KEY);
             if (base.mkdir())
                 log.info("directory \"KEYS\" created... \nAdding keys to folder");
             else {
@@ -111,8 +116,8 @@ public class Utility {
             }
         }
 
-        try (FileOutputStream pubKey = new FileOutputStream(LOCATION_TO_STORE_KEY + (Strings.isNotEmpty(keyName) ? keyName + "_pub" : PUBLIC_KEY_NAME) + ".pem");
-             FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEY + (Strings.isNotEmpty(keyName) ? keyName + "_prv" : PRIVATE_KEY_NAME) + ".pem")) {
+        try (FileOutputStream pubKey = new FileOutputStream(LOCATION_TO_STORE_KEY + osAppender() + (Strings.isNotEmpty(keyName) ? keyName + "_pub" : PUBLIC_KEY_NAME) + ".pem");
+             FileOutputStream priKey = new FileOutputStream(LOCATION_TO_STORE_KEY + osAppender() + (Strings.isNotEmpty(keyName) ? keyName + "_prv" : PRIVATE_KEY_NAME) + ".pem")) {
 
             KeyPairGenerator generator = KeyPairGenerator.getInstance("ECDSA", "BC");
             ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256k1");
@@ -233,9 +238,8 @@ public class Utility {
         ObjectMapper mapper = new ObjectMapper();
         try {
             return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mapper.readTree(json));
-        } catch (JsonProcessingException e) {
-            log.error("Error while trying to beautify JSON string");
-            e.printStackTrace();
+        } catch (JsonProcessingException exception) {
+            log.error("Error while trying to beautify JSON string", exception);
         }
         return null;
     }
@@ -274,11 +278,19 @@ public class Utility {
         return null;
     }
 
-    public static List<String> listFilesInDirectory(String path) {
-        FilenameFilter filter = (f, name) -> name.endsWith(".dat");
+    public static List<String> listFilesInDirectory(String path, String filter) {
+        FilenameFilter fileFilter = (f, name) -> name.endsWith(filter);
         File f = new File(path);
         if (f.exists() && f.isDirectory())
-            return new ArrayList<>(List.of(Objects.requireNonNull(f.list(filter))));
+            return new ArrayList<>(List.of(Objects.requireNonNull(f.list(fileFilter))));
         return new ArrayList<>(List.of("INVALID DIRECTORY"));
+    }
+
+    public static boolean keyFileExistsInDirectory(String keyName) {
+        List<String> files = listFilesInDirectory(LOCATION_TO_STORE_KEY, ".pem");
+        if (!files.isEmpty() && files.get(0).equals("INVALID DIRECTORY"))
+            return false;
+        Set<String> keys = files.stream().map(x -> x.split("_")[0]).collect(Collectors.toSet());
+        return keys.contains(keyName);
     }
 }

@@ -59,7 +59,7 @@ public class IceGathering {
             socket.receive(rp);
             MessageHeader receiveMH = new MessageHeader(MessageHeader.MessageHeaderType.BindingResponse);
 
-            log.info("tnxId: {}, Size: {}", Arrays.toString(receiveMH.getTransactionID()), receiveMH.getTransactionID().length);
+            log.debug("tnxId: {}, Size: {}", Arrays.toString(receiveMH.getTransactionID()), receiveMH.getTransactionID().length);
 
             receiveMH.parseAttributes(rp.getData());
             MappedAddress ma = (MappedAddress) receiveMH

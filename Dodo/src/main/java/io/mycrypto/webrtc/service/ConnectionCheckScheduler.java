@@ -21,9 +21,9 @@ public class ConnectionCheckScheduler {
 
     @Scheduled(fixedDelay = 120000)
     public void connectionHealthCheck() throws InterruptedException {
-        if (simpUserRegistry.getUsers().isEmpty())
-            msgProcessor.startPeerStateInstantiation();
-        else
+        if (simpUserRegistry.getUsers().isEmpty()) {
+            log.info("Connected Number of peers/server: {}", simpUserRegistry.getUsers().size());
+        } else
             log.info("Users: {}", simpUserRegistry.getUsers());
     }
 }

@@ -10,6 +10,7 @@ import org.rocksdb.RocksIterator;
 import org.springframework.stereotype.Repository;
 
 import jakarta.annotation.PostConstruct;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,10 +57,10 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
         File resources = new File(PROJECT_FOLDER_PATH + Utility.osAppender() + OUTER_RESOURCE_FOLDER);
         if (resources.isDirectory())
-            log.info(String.format("The directory \\%s\\ found...", OUTER_RESOURCE_FOLDER));
+            log.info(String.format("Found directory \\%s\\ ...", OUTER_RESOURCE_FOLDER));
         else {
             if (resources.mkdir())
-                log.info(String.format("The directory \\%s\\ is created...", OUTER_RESOURCE_FOLDER));
+                log.info(String.format("Creating directory \\%s\\ ...", OUTER_RESOURCE_FOLDER));
             else
                 log.info(String.format("Unable to create directory \\%s\\ ...", OUTER_RESOURCE_FOLDER));
         }
@@ -75,11 +76,9 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
     private void createDB(Options options, DbName dbName, String msg) {
         File base = new File(LOCATION_TO_STORE_DB);
-        if (base.isDirectory())
-            log.info("The directory \\RocksDB\\ found...");
-        else {
+        if (!base.isDirectory()) {
             if (base.mkdir())
-                log.info("directory \\RocksDB\\ created...");
+                log.info("Creating directory \\RocksDB\\ ...");
             else
                 log.error("Unable to create dir \\RocksDB\\ ...");
         }

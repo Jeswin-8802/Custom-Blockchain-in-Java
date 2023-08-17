@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -29,6 +28,6 @@ public class DodoServerController {
     public void processMessageFromPeer(@Payload StompMessage message,
                                        Principal principal,
                                        @Header("simpSessionId") String sessionId) throws Exception {
-        msgProcessor.processMessageFromPeer(sessionId, principal.getName(), message);
+        msgProcessor.processMessageFromPeerAsServer(sessionId, principal.getName(), message);
     }
 }

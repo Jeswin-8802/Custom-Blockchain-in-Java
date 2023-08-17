@@ -1,9 +1,11 @@
 package io.mycrypto.webrtc.controller;
 
 import io.mycrypto.webrtc.dto.StompMessage;
+import io.mycrypto.webrtc.service.MessageProcessor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaders;
@@ -23,6 +25,9 @@ import java.util.Map;
 @Controller
 public class DodoClientController implements StompSessionHandler {
 
+    @Autowired
+    private MessageProcessor messageProcessor;
+
     private StompSession stompSession = null;
 
     /**
@@ -35,6 +40,52 @@ public class DodoClientController implements StompSessionHandler {
      */
     @Getter
     Map<String, StompSession.Subscription> subscriptions = new HashMap<>();
+
+    /* --- StompSessionHandler methods --- */
+
+    @Override
+    public void afterConnected(@NotNull StompSession session, @NotNull StompHeaders connectedHeaders) {
+        log.info("Connection to STOMP server established.\n" +
+                "Session: {}\n" +
+                "Headers: {}", session, connectedHeaders);
+    }
+
+    @Override
+    public void handleException(@NotNull StompSession session, StompCommand command, @NotNull StompHeaders headers, @NotNull byte[] payload, @NotNull Throwable exception) {
+        log.error("""
+                Got an exception while handling a frame.
+                Command: {}
+                Headers: {}
+                Payload: {}
+                """,
+                command, headers, payload, exception);
+    }
+
+    @Override
+    public void handleTransportError(@NotNull StompSession session, @NotNull Throwable exception) {
+        log.error("Retrieved a transport error: {}", session, exception);
+        if (!session.isConnected()) {
+            subscriptions.clear();
+            connect(serverURL);
+        }
+    }
+
+    @Override
+    public Type getPayloadType(@NotNull StompHeaders headers) {
+        return StompMessage.class;
+    }
+
+    @Override
+    public void handleFrame(@NotNull StompHeaders headers, Object payload) {
+        log.info("Got a new message {}", payload);
+        try {
+            messageProcessor.processMessageAsClient(stompSession.getSessionId() ,headers, (StompMessage) payload);
+        } catch (ClassCastException exception) {
+            log.error("Error occurred when casting payload to Class <StompMessage>", exception);
+        }
+    }
+
+    /* ----------------------------------- */
 
     public void connect(String url) {
         serverURL = url;
@@ -53,8 +104,8 @@ public class DodoClientController implements StompSessionHandler {
                             stompHeaders,
                             this)
                     .get();
-        } catch (Exception e) {
-            log.error("Connection failed."); // TODO: Do some failover and implement retry patterns.
+        } catch (Exception exception) {
+            log.error("Connection failed.", exception); // TODO: Do some failover and implement retry patterns.
         }
     }
 
@@ -72,52 +123,8 @@ public class DodoClientController implements StompSessionHandler {
         stompSession.subscribe(uri, this);
     }
 
-    /* --- StompSessionHandler methods --- */
-
-    @Override
-    public void afterConnected(StompSession session, StompHeaders connectedHeaders) {
-        log.info("Connection to STOMP server established.\n" +
-                "Session: {}\n" +
-                "Headers: {}", session, connectedHeaders);
-    }
-
-    @Override
-    public void handleException(@NotNull StompSession session, StompCommand command, StompHeaders headers, byte[] payload, Throwable exception) {
-        log.error("""
-                Got an exception while handling a frame.
-                Command: {}
-                Headers: {}
-                Payload: {}
-                """,
-                command, headers, payload, exception);
-    }
-
-    @Override
-    public void handleTransportError(StompSession session, Throwable exception) {
-        log.error("Retrieved a transport error: {}", session, exception);
-        if (!session.isConnected()) {
-            subscriptions.clear();
-            connect(serverURL);
-        }
-    }
-
-    @Override
-    public Type getPayloadType(StompHeaders headers) {
-        return StompMessage.class;
-    }
-
-    @Override
-    public void handleFrame(StompHeaders headers, Object payload) {
-        log.info("Got a new message {}", payload);
-        try {
-            StompMessage stompMessage = (StompMessage) payload;
-        } catch (ClassCastException e) {
-            log.error("Error occurred when casting payload to Class <StompMessage>", e);
-        }
-    }
-
     /**
-     * Unsubscribe and close connection before destroying this instance (e.g. on application shutdown).
+     * Unsubscribe and close connection before destroying this instance.
      */
     void shutDown() {
         for (String key : subscriptions.keySet())

@@ -20,6 +20,8 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
@@ -29,6 +31,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static io.mycrypto.core.repository.DbName.*;
 
@@ -120,7 +123,7 @@ public class ResponseService {
         }
 
         // check for if genesis block already exists
-        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
+        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH, ".dat");
 
         if (!ObjectUtils.isEmpty(files) &&
                 files.get(0).equals("INVALID DIRECTORY"))
@@ -148,7 +151,7 @@ public class ResponseService {
     public ResponseEntity<Object> mineBlock(String walletName) {
         log.info("-------------- START MineBlock [GET] API --------------");
         // check for if genesis block exists
-        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
+        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH, ".dat");
         if (ObjectUtils.isEmpty(files)) {
             return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", String.format("Directory %s is empty; genesis block must first be created...", BLOCKCHAIN_STORAGE_PATH)));
         }
@@ -177,17 +180,30 @@ public class ResponseService {
      */
     public ResponseEntity<Object> createWallet(CreateWalletRequestDto request) {
         log.info("-------------- START CreateWallet [POST] API --------------");
+
         // validation
         if (Strings.isEmpty(request.getWalletName())) {
             log.error("Wallet Name cannot be empty");
             return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Wallet Name cannot be empty"));
         }
+        if (Strings.isEmpty(request.getKeyName())) {
+            log.error("Key Name cannot be empty");
+            return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Key Name cannot be empty, (Note: Key Name must be unique)"));
+        }
+        if (!Pattern.matches("[A-Za-z][A-Za-z0-9\\-]+[A-Za-z0-9]", request.getKeyName())) {
+            log.error("Key name must contain only letters, digits and dash(-) while the first and last character must be a letter or digit");
+            return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Key name must contain only letters, digits and dash(-) while the first and last character must be a letter or digit"));
+        }
+        if (Utility.keyFileExistsInDirectory(request.getKeyName())) {
+            log.error("Key file with given name already exists; To overwrite the key remove the keys from /RESOURCES/KEYS");
+            return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Key file with given name already exists; To overwrite the key remove the keys from /RESOURCES/KEYS"));
+        }
 
         WalletInfoDto value = null;
         try {
             value = Utility.generateKeyPairToFile(request.getKeyName());
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+        } catch (FileNotFoundException exception) {
+            log.error("An exception occurred", exception);
         }
 
         log.info("\n {}", request.getWalletName());
@@ -212,6 +228,24 @@ public class ResponseService {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Unable to construct script signature when adding the early adopter reward..."));
         }
+    }
+
+    /**
+     *  Creates a default wallet that will be used to
+     *  refer to this peer externally
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    private void createDefaultWallet() {
+        String walletName = "My-Wallet";
+        String keyName = "My-Key";
+
+        log.info("Creating default Wallet -> {}", walletName);
+
+        CreateWalletRequestDto wallet = new CreateWalletRequestDto();
+        wallet.setWalletName(walletName);
+        wallet.setKeyName(keyName);
+
+        createWallet(wallet);
     }
 
     /**
