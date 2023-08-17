@@ -40,9 +40,9 @@ public class BlockService {
     }
 
     @Autowired
-    KeyValueRepository<String, String> rocksDB;
+    private KeyValueRepository<String, String> rocksDB;
     @Autowired
-    TransactionService transactionService;
+    private TransactionService transactionService;
 
     public Block mineBlock(String walletName) throws MyCustomException {
         // get transactions from Transactions Pool
@@ -56,14 +56,14 @@ public class BlockService {
         try {
             previousBlockHeight = rocksDB.getCount(BLOCKCHAIN) - 1;
             previousBlock = new ObjectMapper().readValue(fetchBlockContentByHeight((int) previousBlockHeight).toJSONString(), Block.class);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+        } catch (FileNotFoundException exception) {
+            log.error("An unexpected error occurred", exception);
             throw new MyCustomException(String.format("Did not find file storing Block Information for Block with height: %s", previousBlockHeight));
-        } catch (ParseException e) {
-            e.printStackTrace();
+        } catch (ParseException exception) {
+            log.error("An unexpected error occurred", exception);
             throw new MyCustomException("Error while parsing contents of previous Block from File to JSON");
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
+        } catch (JsonProcessingException exception) {
+            log.error("An unexpected error occurred", exception);
             throw new MyCustomException("Error while parsing contents of previous Block from JsonString to <Block.class>");
         }
         block.setPreviousHash(previousBlock.getHash());
@@ -83,8 +83,8 @@ public class BlockService {
                 throw new MyCustomException("Wallet not found");
             }
             info = new ObjectMapper().readValue(walletInfo, WalletInfoDto.class);
-        } catch (JsonProcessingException | IllegalArgumentException e) {
-            e.printStackTrace();
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            log.error("An unexpected error occurred", exception);
             throw new MyCustomException("Encountered a parsing error for WalletInfo...");
         } catch (MyCustomException e) {
             log.error(e.getErrorMessage());
@@ -97,7 +97,7 @@ public class BlockService {
         block.setTransactions(transactions);
 
         List<String> transactionIds = new ArrayList<>();
-        for (Transaction tx: transactions)
+        for (Transaction tx : transactions)
             transactionIds.add(tx.getTransactionId());
 
         block.setTransactionIds(transactionIds);
@@ -130,9 +130,8 @@ public class BlockService {
             if (Strings.isEmpty(walletInfo))
                 throw new MyCustomException("Wallet not found");
             info = new ObjectMapper().readValue(walletInfo, WalletInfoDto.class);
-        } catch (JsonProcessingException | IllegalArgumentException e) {
-            log.error("Wallet >> default << NOT FOUND...");
-            e.printStackTrace();
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            log.error("Wallet >> default << NOT FOUND...", exception);
             throw new MyCustomException("Could not find wallet to send block reward to. Please create a wallet called default");
         } catch (MyCustomException e) {
             log.error(e.getErrorMessage());
@@ -181,12 +180,10 @@ public class BlockService {
             DataOutputStream out = new DataOutputStream(new FileOutputStream(BLOCKCHAIN_STORAGE_PATH + blockFileName + ".dat"));
             out.writeUTF(MAGIC_BYTES + Base64.getEncoder().withoutPadding().encodeToString(json.getBytes()));
             out.close();
-        } catch (FileNotFoundException e) {
-            log.error("Error occurred while creating {} at location {} ", blockFileName, BLOCKCHAIN_STORAGE_PATH);
-            e.printStackTrace();
-        } catch (IOException e) {
-            log.error("Error occurred while creating DataOutputStream");
-            e.printStackTrace();
+        } catch (FileNotFoundException exception) {
+            log.error("Error occurred while creating {} at location {} ", blockFileName, BLOCKCHAIN_STORAGE_PATH, exception);
+        } catch (IOException exception) {
+            log.error("Error occurred while creating DataOutputStream", exception);
         }
 
         return json;

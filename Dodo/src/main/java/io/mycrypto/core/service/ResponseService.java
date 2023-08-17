@@ -8,11 +8,12 @@ import io.mycrypto.core.entity.Block;
 import io.mycrypto.core.entity.Transaction;
 import io.mycrypto.core.exception.MyCustomException;
 import io.mycrypto.core.repository.DbName;
-import io.mycrypto.core.service.block.BlockService;
 import io.mycrypto.core.repository.KeyValueRepository;
+import io.mycrypto.core.service.block.BlockService;
 import io.mycrypto.core.service.transaction.TransactionService;
 import io.mycrypto.core.service.wallet.WalletService;
 import io.mycrypto.core.util.Utility;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SystemUtils;
 import org.apache.logging.log4j.util.Strings;
@@ -29,6 +30,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static io.mycrypto.core.repository.DbName.*;
 
@@ -44,16 +46,19 @@ public class ResponseService {
     }
 
     @Autowired
-    BlockService blockService;
-    @Autowired
-    WalletService walletService;
-    @Autowired
-    TransactionService transactionService;
-    @Autowired
-    DodoCommonConfig config;
-    @Autowired
-    KeyValueRepository<String, String> rocksDB;
+    private BlockService blockService;
 
+    @Autowired
+    private WalletService walletService;
+
+    @Autowired
+    private TransactionService transactionService;
+
+    @Autowired
+    private DodoCommonConfig config;
+
+    @Autowired
+    private KeyValueRepository<String, String> rocksDB;
 
     // ---------BLOCKS--------------------------------------------------------------------------------------------------------------
 
@@ -65,17 +70,14 @@ public class ResponseService {
         log.info("-------------- START FetchBlockContent [GET] API --------------");
         try {
             return ResponseEntity.ok(blockService.fetchBlockContent(hash));
-        } catch (NullPointerException e) {
-            log.error("Wrong hash provided. The fetch from DB method returns NULL");
-            e.printStackTrace();
+        } catch (NullPointerException exception) {
+            log.error("Wrong hash provided. The fetch from DB method returns NULL", exception);
             return ResponseEntity.noContent().build();
-        } catch (IOException e) {
-            log.error("Error occurred while referring to new file PATH..");
-            e.printStackTrace();
+        } catch (IOException exception) {
+            log.error("Error occurred while referring to new file PATH..", exception);
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("error-msg", "File path referred to in DB is wrong or the file does not exist in that location"));
-        } catch (ParseException e) {
-            log.error("Error occurred while parsing contents of block file to JSON");
-            e.printStackTrace();
+        } catch (ParseException exception) {
+            log.error("Error occurred while parsing contents of block file to JSON", exception);
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("error-msg", "Error while parsing Block data"));
         }
     }
@@ -88,13 +90,11 @@ public class ResponseService {
         log.info("-------------- START FetchBlockContentByHeight [GET] API --------------");
         try {
             return ResponseEntity.ok(blockService.fetchBlockContentByHeight(Integer.parseInt(height)));
-        } catch (FileNotFoundException e) {
-            log.error("Invalid height specified... Unable to find {}", "\\blk" + String.format("%010d", Integer.parseInt(height) + 1) + ".dat");
-            e.printStackTrace();
+        } catch (FileNotFoundException exception) {
+            log.error("Invalid height specified... Unable to find {}", "\\blk" + String.format("%010d", Integer.parseInt(height) + 1) + ".dat", exception);
             return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Block with height " + height + " was not found"));
-        } catch (ParseException e) {
-            log.error("error while parsing contents in file " + BLOCKCHAIN_STORAGE_PATH + "\\blk" + String.format("%010d", Integer.parseInt(height) + 1) + ".dat to JSON");
-            e.printStackTrace();
+        } catch (ParseException exception) {
+            log.error("error while parsing contents in file " + BLOCKCHAIN_STORAGE_PATH + "\\blk" + String.format("%010d", Integer.parseInt(height) + 1) + ".dat to JSON", exception);
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't Parse block contents to JSON..."));
         }
     }
@@ -120,7 +120,7 @@ public class ResponseService {
         }
 
         // check for if genesis block already exists
-        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
+        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH, ".dat");
 
         if (!ObjectUtils.isEmpty(files) &&
                 files.get(0).equals("INVALID DIRECTORY"))
@@ -134,13 +134,12 @@ public class ResponseService {
             Block genesis;
             try {
                 genesis = blockService.mineGenesisBlock(walletName);
-            } catch (MyCustomException e) {
-                return ResponseEntity.internalServerError().body(e.getMessageAsJSONString());
+            } catch (MyCustomException exception) {
+                return ResponseEntity.internalServerError().body(exception.getMessageAsJSONString());
             }
             return ResponseEntity.ok(new JSONParser().parse(blockService.saveBlock(genesis, "blk" + String.format("%010d", genesis.getHeight() + 1))));
-        } catch (ParseException e) {
-            log.error("Error while constructing response for createGenesisBlock()..");
-            e.printStackTrace();
+        } catch (ParseException exception) {
+            log.error("Error while constructing response for createGenesisBlock()...", exception);
         }
         return null;
     }
@@ -148,7 +147,7 @@ public class ResponseService {
     public ResponseEntity<Object> mineBlock(String walletName) {
         log.info("-------------- START MineBlock [GET] API --------------");
         // check for if genesis block exists
-        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH);
+        List<String> files = Utility.listFilesInDirectory(BLOCKCHAIN_STORAGE_PATH, ".dat");
         if (ObjectUtils.isEmpty(files)) {
             return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", String.format("Directory %s is empty; genesis block must first be created...", BLOCKCHAIN_STORAGE_PATH)));
         }
@@ -157,13 +156,12 @@ public class ResponseService {
             Block block;
             try {
                 block = blockService.mineBlock(walletName);
-            } catch (MyCustomException e) {
-                return ResponseEntity.internalServerError().body(e.getMessageAsJSONString());
+            } catch (MyCustomException exception) {
+                return ResponseEntity.internalServerError().body(exception.getMessageAsJSONString());
             }
             return ResponseEntity.ok(new JSONParser().parse(blockService.saveBlock(block, "blk" + String.format("%010d", block.getHeight() + 1))));
-        } catch (ParseException e) {
-            log.error("Error while constructing response for mineBlock()..");
-            e.printStackTrace();
+        } catch (ParseException exception) {
+            log.error("Error while constructing response for mineBlock()...", exception);
         }
         return null;
     }
@@ -177,17 +175,30 @@ public class ResponseService {
      */
     public ResponseEntity<Object> createWallet(CreateWalletRequestDto request) {
         log.info("-------------- START CreateWallet [POST] API --------------");
+
         // validation
         if (Strings.isEmpty(request.getWalletName())) {
             log.error("Wallet Name cannot be empty");
             return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Wallet Name cannot be empty"));
         }
+        if (Strings.isEmpty(request.getKeyName())) {
+            log.error("Key Name cannot be empty");
+            return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Key Name cannot be empty, (Note: Key Name must be unique)"));
+        }
+        if (!Pattern.matches("[A-Za-z][A-Za-z0-9\\-]+[A-Za-z0-9]", request.getKeyName())) {
+            log.error("Key name must contain only letters, digits and dash(-) while the first and last character must be a letter or digit");
+            return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Key name must contain only letters, digits and dash(-) while the first and last character must be a letter or digit"));
+        }
+        if (Utility.keyFileExistsInDirectory(request.getKeyName())) {
+            log.error("Key file with given name already exists; To overwrite the wallet address remove the keys from /RESOURCES/KEYS");
+            return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Key file with given name already exists; To overwrite the key remove the keys from /RESOURCES/KEYS"));
+        }
 
         WalletInfoDto value = null;
         try {
             value = Utility.generateKeyPairToFile(request.getKeyName());
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+        } catch (FileNotFoundException exception) {
+            log.error("An exception occurred", exception);
         }
 
         log.info("\n {}", request.getWalletName());
@@ -203,15 +214,48 @@ public class ResponseService {
                 log.info("Currency added as reward => {}", new ObjectMapper().writeValueAsString(tnx));
             }
             return constructWalletResponseFromInfo(new ObjectMapper().writeValueAsString(value));
-        } catch (JsonProcessingException e) {
-            log.error("Error while trying to parse WalletInfoDto to JSON...");
-            e.printStackTrace();
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            log.error("Error while trying to parse WalletInfoDto to JSON...", exception);
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Encountered an error while parsing..."));
-        } catch (MyCustomException e) {
-            log.error("Error while constructing script signature...");
-            e.printStackTrace();
+        } catch (MyCustomException exception) {
+            log.error("Error while constructing script signature...", exception);
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Unable to construct script signature when adding the early adopter reward..."));
         }
+    }
+
+    /**
+     * Creates a default wallet that will be used to
+     * refer to this peer externally
+     */
+    @PostConstruct
+    private void createDefaultWallet() {
+        String walletName = config.getDefaultWalletName();
+        String keyName = config.getDefaultKeyName();
+
+        log.info("Creating default Wallet -> {}", walletName);
+
+        CreateWalletRequestDto wallet = new CreateWalletRequestDto();
+        wallet.setWalletName(walletName);
+        wallet.setKeyName(keyName);
+
+        createWallet(wallet);
+    }
+
+    /**
+     * The String data is mapped to an object of class WalletInfoDto
+     *
+     * @param data Wallet information retrieved from DB
+     * @return WalletInfoDto
+     */
+    public static WalletInfoDto castToWalletInfoDto(String data) {
+        WalletInfoDto info = null;
+        try {
+            info = new ObjectMapper().readValue(data, WalletInfoDto.class);
+            log.info("Wallet Contents: \n{}", new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(info));
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            log.error("Error while parsing json to WalletInfoDto...", exception);
+        }
+        return info;
     }
 
     /**
@@ -219,16 +263,9 @@ public class ResponseService {
      * @return Response Object
      */
     private ResponseEntity<Object> constructWalletResponseFromInfo(String data) {
-        WalletInfoDto info = null;
-        try {
-            info = new ObjectMapper().readValue(data, WalletInfoDto.class);
-            log.info("Wallet Contents: \n{}", new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(info));
-        } catch (JsonProcessingException e) {
-            log.error("Error while parsing json to WalletInfoDto..");
-            e.printStackTrace();
-        }
+        WalletInfoDto info = castToWalletInfoDto(data);
+
         WalletResponseDto response = new WalletResponseDto();
-        assert info != null;
         response.setPublicKey(info.getPublicKey());
         response.setPrivateKey(info.getPrivateKey());
         response.setHash160(info.getHash160());
@@ -244,8 +281,8 @@ public class ResponseService {
             JSONObject transactionsJSON;
             try {
                 transactionsJSON = new ObjectMapper().readValue(transactions, JSONObject.class);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
+            } catch (JsonProcessingException | IllegalArgumentException exception) {
+                log.error("En error occurred when paring JSON", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Error while Parsing UTXO data from Accounts DB to JSON..."));
             }
 
@@ -253,12 +290,11 @@ public class ResponseService {
             List<UTXODto> UTXOs;
             try {
                 UTXOs = transactionService.retrieveAllUTXOs(transactionsJSON, TRANSACTIONS);
-            } catch (JsonProcessingException e) {
-                log.error("Error while parsing data in Transaction DB to an object of class <Transaction>");
-                e.printStackTrace();
+            } catch (JsonProcessingException | IllegalArgumentException exception) {
+                log.error("Error while parsing data in Transaction DB to an object of class <Transaction>", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't parse transaction data(String) to Object<Transaction>..."));
-            } catch (MyCustomException e) {
-                return ResponseEntity.internalServerError().body(e.getMessageAsJSONString());
+            } catch (MyCustomException exception) {
+                return ResponseEntity.internalServerError().body(exception.getMessageAsJSONString());
             }
 
             for (UTXODto utxo : UTXOs)
@@ -270,9 +306,8 @@ public class ResponseService {
                         .total(sum)
                         .build()
                 ));
-            } catch (JsonProcessingException e) {
-                log.error("Error while parsing WalletUTXOsResponseDto to JSON..");
-                e.printStackTrace();
+            } catch (JsonProcessingException | IllegalArgumentException exception) {
+                log.error("Error while parsing WalletUTXOsResponseDto to JSON...", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't parse WalletUTXOsResponseDto to JSON..."));
             }
         }
@@ -321,7 +356,7 @@ public class ResponseService {
 
     /**
      * @param id                      The Transaction ID
-     * @param searchInTransactionPool   Boolean value which determines if the search should be performed in the Transactions-Pool DB if true or Transactions DB if false
+     * @param searchInTransactionPool Boolean value which determines if the search should be performed in the Transactions-Pool DB if true or Transactions DB if false
      * @return Response Object
      */
     public ResponseEntity<Object> constructResponseForFetchTransaction(String id, Boolean searchInTransactionPool) {
@@ -351,7 +386,7 @@ public class ResponseService {
                 return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", String.format("No transaction(s) found with address: %s", address)));
             }
             DbName dbName = null;
-            for (DbName name: DbName.class.getEnumConstants())
+            for (DbName name : DbName.class.getEnumConstants())
                 if (db.equalsIgnoreCase(name.toString()))
                     dbName = name;
 
@@ -362,7 +397,7 @@ public class ResponseService {
 
             try {
                 UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), dbName);
-            } catch (JsonProcessingException exception) {
+            } catch (JsonProcessingException | IllegalArgumentException exception) {
                 log.error("Error while casting UTXO info to JSONObject from AccountsDB...", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("err", "Error while casting UTXO info to JSONObject from AccountsDB..."));
             } catch (MyCustomException exception) {
@@ -376,9 +411,8 @@ public class ResponseService {
                     .total(sum)
                     .build();
             log.info("UTXOs for address {} : \n{}", address, new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(response));
-        } catch (JsonProcessingException e) {
-            log.error("Error while parsing WalletUTXOsResponseDto to JSON..");
-            e.printStackTrace();
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            log.error("Error while parsing WalletUTXOsResponseDto to JSON...", exception);
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't parse WalletUTXOsResponseDto to JSON..."));
         }
         return ResponseEntity.ok(response);
@@ -412,17 +446,16 @@ public class ResponseService {
                     return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", String.format("Wallet \"%s\" not found in WalletsDB...", walletName)));
                 walletInfo = new ObjectMapper().readValue(info, WalletInfoDto.class);
             }
-        } catch (JsonProcessingException e) {
-            log.error("Error occurred while parsing Wallet content from String to DTO object");
-            e.printStackTrace();
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            log.error("Error occurred while parsing Wallet content from String to DTO object", exception);
             return ResponseEntity.internalServerError().build();
         }
 
         List<UTXODto> UTXOs;
         try {
             UTXOs = transactionService.selectivelyFetchUTXOs(new BigDecimal(amount), algorithm, walletInfo.getAddress(), Strings.isEmpty(transactionFee) ? config.getTransactionFee() : new BigDecimal(transactionFee));
-        } catch (MyCustomException e) {
-            return ResponseEntity.badRequest().body(e.getMessageAsJSONString());
+        } catch (MyCustomException exception) {
+            return ResponseEntity.badRequest().body(exception.getMessageAsJSONString());
         }
         BigDecimal total = new BigDecimal(0);
         for (UTXODto utxo : UTXOs)
@@ -510,17 +543,10 @@ public class ResponseService {
      * @param db  The Name of the DB
      * @return Response Object
      */
-    public ResponseEntity<Object> delete(String key, DbName db) {
-        log.info("-------------- START Delete [DELETE] API --------------");
-        if (!rocksDB.delete(key, db))
-            return ResponseEntity.badRequest().build();
-        return ResponseEntity.ok().build();
-    }
-
     public ResponseEntity<Object> delete(String key, String db) {
         log.info("-------------- START Delete [DELETE] API --------------");
         // get DbName ENUM
-        for (DbName name: DbName.class.getEnumConstants())
+        for (DbName name : DbName.class.getEnumConstants())
             if (db.equalsIgnoreCase(name.toString()))
                 if (!rocksDB.delete(key, name))
                     return ResponseEntity.badRequest().build();

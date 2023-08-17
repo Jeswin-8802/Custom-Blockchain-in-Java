@@ -12,7 +12,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    public static final String ENDPOINT_CONNECT = "/dodo-ss";
+    public static final String ENDPOINT_CONNECT = "/ss";
     public static final String SUBSCRIBE_USER_PREFIX = "/peer";
     public static final String APPLICATION_PREFIX = "/signal";
 

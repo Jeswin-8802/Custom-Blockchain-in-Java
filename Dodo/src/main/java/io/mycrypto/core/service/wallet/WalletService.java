@@ -25,11 +25,12 @@ import static io.mycrypto.core.repository.DbName.*;
 @Slf4j
 @Service
 public class WalletService {
-    @Autowired
-    KeyValueRepository<String, String> rocksDB;
 
     @Autowired
-    TransactionService transactionService;
+    private KeyValueRepository<String, String> rocksDB;
+
+    @Autowired
+    private TransactionService transactionService;
 
     /**
      * fetches All Wallet-Info from "Wallets" DB from which we obtain WalletName and Address;
@@ -51,15 +52,14 @@ public class WalletService {
             WalletInfoDto temp = null;
             try {
                 temp = new ObjectMapper().readValue(i.getValue(), WalletInfoDto.class);
-            } catch (JsonProcessingException e) {
-                log.error("Error occurred while trying to parse data from Wallets DB to that of type <WalletInfoDto>...");
-                e.printStackTrace();
-                throw new RuntimeException(e);
+            } catch (JsonProcessingException exception) {
+                log.error("Error occurred while trying to parse data from Wallets DB to that of type <WalletInfoDto>...", exception);
             }
 
             BigDecimal balance = new BigDecimal("0");
 
             // get balance from "Accounts" DB
+            assert temp != null;
             String transactionDetails = rocksDB.find(temp.getAddress(), ACCOUNTS);
             List<UTXODto> UTXOs = null;
             if (!transactionDetails.equals("EMPTY")) {
@@ -114,9 +114,8 @@ public class WalletService {
         byte[] checksum = new byte[4];
         try {
             System.arraycopy(Objects.requireNonNull(Utility.getHashSHA256(Utility.getHashSHA256(Utility.hexToBytes(hash160)))), 0, checksum, 0, 4);
-        } catch (StringIndexOutOfBoundsException e) {
-            log.error("Invalid parameters passed; The length of address and or hash160 is invalid");
-            e.printStackTrace();
+        } catch (StringIndexOutOfBoundsException exception) {
+            log.error("Invalid parameters passed; The length of address and or hash160 is invalid", exception);
             throw new MyCustomException("Invalid length for the address and or hash160");
         }
         log.info("checksum from public-key: {}", Utility.bytesToHex(checksum));
