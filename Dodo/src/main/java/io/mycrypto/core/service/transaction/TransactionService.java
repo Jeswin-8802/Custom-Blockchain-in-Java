@@ -18,6 +18,7 @@ import io.mycrypto.core.util.UTXOFilterAlgorithms;
 import io.mycrypto.core.util.Utility;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
+import org.jetbrains.annotations.NotNull;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -43,7 +44,10 @@ import static io.mycrypto.core.repository.DbName.*;
 public class TransactionService {
 
     @Autowired
-    DodoCommonConfig config;
+    private DodoCommonConfig config;
+
+    @Autowired
+    private KeyValueRepository<String, String> rocksDB;
 
     // AVAILABLE ALGORITHMS --------------------------------------
 
@@ -59,16 +63,11 @@ public class TransactionService {
     }
     // -----------------------------------------------------------
 
-    @Autowired
-    KeyValueRepository<String, String> rocksDB;
-
-    // -----------------------------------------------------------
-
     /**
      * Fetches transaction by its ID
      *
      * @param id                      Transaction ID
-     * @param searchInTransactionPool   Boolean that specifies the location for search
+     * @param searchInTransactionPool Boolean that specifies the location for search
      * @return Transaction Information in JSONObject format
      */
     public JSONObject fetchTransaction(String id, Boolean searchInTransactionPool) throws NullPointerException {
@@ -77,9 +76,8 @@ public class TransactionService {
             if (json != null)
                 return (JSONObject) new JSONParser().parse(json);
             throw new NullPointerException();
-        } catch (ParseException e) {
-            log.error("Error while parsing contents of {} in DB to JSON", id);
-            e.printStackTrace();
+        } catch (ParseException exception) {
+            log.error("Error while parsing contents of {} in DB to JSON", id, exception);
         }
         return null;
     }
@@ -120,8 +118,8 @@ public class TransactionService {
             JSONObject transactionJSON;
             try {
                 transactionJSON = new ObjectMapper().readValue(rocksDB.find(fromInfo.getAddress(), ACCOUNTS), JSONObject.class);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
+            } catch (JsonProcessingException exception) {
+                log.error("An error occurred when formatting to JSON", exception);
                 throw new MyCustomException("Parse Error...");
             }
 
@@ -272,7 +270,7 @@ public class TransactionService {
             }
             outputNum += amountRatios.size();
         } else {
-            int loopCount = Strings.isBlank(outputPartsInfo) ? (isOutputToSender ? config.getDefaultOutputDivisions() : 1) : (int)Double.parseDouble(outputPartsInfo);
+            int loopCount = Strings.isBlank(outputPartsInfo) ? (isOutputToSender ? config.getDefaultOutputDivisions() : 1) : (int) Double.parseDouble(outputPartsInfo);
             BigDecimal amount = isOutputToSender ?
                     (total.subtract(requestDto.getAmount()).subtract(ObjectUtils.isEmpty(requestDto.getTransactionFee()) ? config.getTransactionFee() : requestDto.getTransactionFee())).divide(BigDecimal.valueOf(loopCount)) : // (total - amount - transactionFee) / num_parts
                     requestDto.getAmount().divide(BigDecimal.valueOf(loopCount));
@@ -290,17 +288,17 @@ public class TransactionService {
 
     private void optimizedVoutRefactoring(JSONObject transactionJSON, List<UTXODto> utxos) {
         Map<String, List<Long>> utxosSummmary = new HashMap<>();
-        for (UTXODto utxo: utxos) {
+        for (UTXODto utxo : utxos) {
             utxosSummmary.putIfAbsent(utxo.getTransactionId(), new ArrayList<>());
             utxosSummmary.get(utxo.getTransactionId()).add(utxo.getVout());
         }
 
         // selectively removing vouts from json field values
-        for (String transactionId :utxosSummmary.keySet()) {
+        for (String transactionId : utxosSummmary.keySet()) {
             String VOUTs = (String) transactionJSON.get(transactionId);
             if (VOUTs.contains(",")) {
                 List<String> voutList = new ArrayList<>(List.of(VOUTs.split(",")));
-                for (Long vout: utxosSummmary.get(transactionId))
+                for (Long vout : utxosSummmary.get(transactionId))
                     voutList.remove(vout.toString());
                 if (CollectionUtils.isEmpty(voutList))
                     transactionJSON.remove(transactionId);
@@ -336,12 +334,12 @@ public class TransactionService {
 
         // converting transactions from JSON String to <Transaction.class>
         List<Transaction> transactions = new ArrayList<>();
-        for (String transactionHash: transactionsMap.keySet()) {
+        for (String transactionHash : transactionsMap.keySet()) {
             try {
                 Transaction tx = new ObjectMapper().readValue(transactionsMap.get(transactionHash), Transaction.class);
                 transactions.add(tx);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
+            } catch (JsonProcessingException exception) {
+                log.error("An error occurred when formatting to JSON", exception);
                 throw new MyCustomException(String.format("Error while parsing Transaction with id: %s from JSON String to <Transaction.class>", transactionHash));
             }
         }
@@ -365,7 +363,7 @@ public class TransactionService {
         }
 
         // removing the transactions from the Transactions-PoolDB and adding to TransactionsDB
-        for (Transaction tx: transactions) {
+        for (Transaction tx : transactions) {
             rocksDB.delete(tx.getTransactionId(), TRANSACTIONS_POOL);
 
             // save transaction information to AccountsDB if transaction has your wallet address
@@ -385,8 +383,8 @@ public class TransactionService {
     /**
      * Creates a coinbase transaction
      *
-     * @param info Holds Wallet Information
-     * @param forGenesisBlock A Boolean value which specifies if the coinbase transaction belongs to a genesis block or a normal block
+     * @param info             Holds Wallet Information
+     * @param forGenesisBlock  A Boolean value which specifies if the coinbase transaction belongs to a genesis block or a normal block
      * @param transactionsList A list of transactions which is considered when the transaction fee of all transactions in a block needs to be considered when mining a block
      * @return Transaction Object containing information about the coinbase transaction
      */
@@ -396,35 +394,8 @@ public class TransactionService {
         coinbase.setInputs(new ArrayList<>());
         coinbase.setNumOutputs(config.getDefaultOutputDivisions() + (CollectionUtils.isEmpty(transactionsList) ? 0 : 1));
 
-        // construct output
-
         // construct Script Public Key (Locking Script)
-        ScriptPublicKey script = new ScriptPublicKey(info.getHash160(), info.getAddress());
-
-        List<Output> outputList = new ArrayList<>();
-        for (int i = 0; i < config.getDefaultOutputDivisions(); i++) {
-            Output output = new Output();
-            output.setAmount(config.getBlockReward().divide(new BigDecimal(config.getDefaultOutputDivisions())));
-            output.setN((long)i);
-            output.setScriptPubKey(script);
-
-            outputList.add(output);
-        }
-
-        if (!CollectionUtils.isEmpty(transactionsList)) {
-            Output output = new Output();
-
-            // calculate the transaction fee for all the transactions that will be included in the block
-            BigDecimal total = new BigDecimal(0);
-            for (Transaction tx: transactionsList)
-                total = total.add(tx.getTransactionFee());
-
-            output.setAmount(total);
-            output.setN((long) outputList.size());
-            output.setScriptPubKey(script);
-
-            outputList.add(output);
-        }
+        List<Output> outputList = getOutputs(info, transactionsList);
 
         // set outputs
         coinbase.setOutputs(outputList);
@@ -441,6 +412,37 @@ public class TransactionService {
         return coinbase;
     }
 
+    @NotNull
+    private List<Output> getOutputs(WalletInfoDto info, List<Transaction> transactionsList) {
+        ScriptPublicKey script = new ScriptPublicKey(info.getHash160(), info.getAddress());
+
+        List<Output> outputList = new ArrayList<>();
+        for (int i = 0; i < config.getDefaultOutputDivisions(); i++) {
+            Output output = new Output();
+            output.setAmount(config.getBlockReward().divide(new BigDecimal(config.getDefaultOutputDivisions())));
+            output.setN((long) i);
+            output.setScriptPubKey(script);
+
+            outputList.add(output);
+        }
+
+        if (!CollectionUtils.isEmpty(transactionsList)) {
+            Output output = new Output();
+
+            // calculate the transaction fee for all the transactions that will be included in the block
+            BigDecimal total = new BigDecimal(0);
+            for (Transaction tx : transactionsList)
+                total = total.add(tx.getTransactionFee());
+
+            output.setAmount(total);
+            output.setN((long) outputList.size());
+            output.setScriptPubKey(script);
+
+            outputList.add(output);
+        }
+        return outputList;
+    }
+
     /**
      * @param tx Transaction Object holding all the Transaction Information
      */
@@ -454,9 +456,8 @@ public class TransactionService {
             tx.setWeight(new BigInteger("4").multiply(tx.getSize()).subtract(new BigInteger(String.valueOf(tx.getInputs().size()))));
             json = ow.writeValueAsString(tx);
             log.info("{}::{} ==> \n{}", methodName, tx.getTransactionId(), json);
-        } catch (JsonProcessingException e) {
-            log.error("Error occurred while parsing Object(Transaction) to json");
-            e.printStackTrace();
+        } catch (JsonProcessingException exception) {
+            log.error("Error occurred while parsing Object(Transaction) to json", exception);
             throw new MyCustomException("Error occurred while parsing Object(Transaction) to json");
         }
 
@@ -479,8 +480,8 @@ public class TransactionService {
         if (!existingTransactions.equals("EMPTY")) {
             try {
                 transactions = new ObjectMapper().readValue(existingTransactions, JSONObject.class);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
+            } catch (JsonProcessingException exception) {
+                log.error("An error occurred when formatting to JSON", exception);
                 throw new MyCustomException("Error while casting transaction UTXO data from Accounts DB to JSON Object...");
             }
         } else {
@@ -488,7 +489,7 @@ public class TransactionService {
         }
 
         if (transactions.containsKey(txId))
-            transactions.put(txId, ((String)transactions.get(txId)).concat("," + vout.toString()));
+            transactions.put(txId, ((String) transactions.get(txId)).concat("," + vout.toString()));
         else
             transactions.put(txId, vout.toString());
         rocksDB.save(address, transactions.toJSONString(), ACCOUNTS);
@@ -518,7 +519,7 @@ public class TransactionService {
             // getting the vout
             for (Output output : outputs) {
                 if (outN.contains(",")) {
-                    for (String n: outN.split(",")) {
+                    for (String n : outN.split(",")) {
                         if (output.getN() == Long.parseLong(n)) {
                             amount = output.getAmount();
                             result.add(UTXODto.builder()
@@ -574,26 +575,14 @@ public class TransactionService {
         List<UTXODto> allUTXOs;
         try {
             allUTXOs = retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), TRANSACTIONS); // Note: for a UTXO to be used, it must have been mined
-        } catch (JsonProcessingException e) {
-            log.error("Error while parsing transaction info in DB to <Transaction.class> OR utxo info to JSON");
-            e.printStackTrace();
+        } catch (JsonProcessingException exception) {
+            log.error("Error while parsing transaction info in DB to <Transaction.class> OR utxo info to JSON", exception);
             throw new MyCustomException("Error while parsing transaction info in DB to <Transaction.class> OR utxo info to JSON");
         }
         if (CollectionUtils.isEmpty(allUTXOs))
             throw new MyCustomException("Wallet is empty...");
 
-        String alg;
-        switch (algorithm) {
-            case 1 -> alg = OPTIMIZED;
-            case 2 -> alg = HIGHEST_SORTED;
-            case 3 -> alg = LOWEST_SORTED;
-            case 4 -> alg = RANDOM;
-            default -> throw new MyCustomException("Invalid algorithm type passed");
-        }
-
-        // checking for allowed algorithms
-        if (!ALLOWED_ALGORITHMS.contains(alg))
-            throw new MyCustomException(String.format("Algorithm %s not present in ALLOWED_LIST of algorithms...", alg));
+        String alg = getString(algorithm);
 
         // checking for if the wallet contains enough balance to transact the given amount
         BigDecimal total = new BigDecimal(0);
@@ -617,6 +606,23 @@ public class TransactionService {
         }
 
         return filteredUTXOs;
+    }
+
+    @NotNull
+    private static String getString(Integer algorithm) throws MyCustomException {
+        String alg;
+        switch (algorithm) {
+            case 1 -> alg = OPTIMIZED;
+            case 2 -> alg = HIGHEST_SORTED;
+            case 3 -> alg = LOWEST_SORTED;
+            case 4 -> alg = RANDOM;
+            default -> throw new MyCustomException("Invalid algorithm type passed");
+        }
+
+        // checking for allowed algorithms
+        if (!ALLOWED_ALGORITHMS.contains(alg))
+            throw new MyCustomException(String.format("Algorithm %s not present in ALLOWED_LIST of algorithms...", alg));
+        return alg;
     }
 
     private void saveTransactionToWalletIfTransactionPointsToWalletOwned(Transaction tx) throws MyCustomException {

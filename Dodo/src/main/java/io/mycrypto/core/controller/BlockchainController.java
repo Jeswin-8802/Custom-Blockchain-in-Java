@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 public class BlockchainController {
 
     @Autowired
-    ResponseService service;
+    private ResponseService service;
 
     // ---------BLOCK---------------------------------------------------------------------------------------------------
 

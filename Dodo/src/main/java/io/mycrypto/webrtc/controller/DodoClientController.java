@@ -39,7 +39,7 @@ public class DodoClientController implements StompSessionHandler {
      * Map of subscriptions.
      */
     @Getter
-    Map<String, StompSession.Subscription> subscriptions = new HashMap<>();
+    private Map<String, StompSession.Subscription> subscriptions = new HashMap<>();
 
     /* --- StompSessionHandler methods --- */
 
