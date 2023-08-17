@@ -52,11 +52,9 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
     private void createDB(Options options, DbName dbName, String msg) {
         File base = new File(LOCATION_TO_STORE_DB);
-        if (base.isDirectory())
-            log.info("The directory \\RocksDB\\ found...");
-        else {
+        if (!base.isDirectory()) {
             if (base.mkdir())
-                log.info("directory \\RocksDB\\ created...");
+                log.info("Creating directory \\RocksDB\\ ...");
             else
                 log.error("Unable to create dir \\RocksDB\\ ...");
         }
@@ -80,7 +78,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
 
 
     @Override
-    public void save(String key, String value, DbName db) {
+    public synchronized void save(String key, String value, DbName db) {
         log.info("----SAVE----      KEY: {}     VALUE: {}     DB: {}", key, value.length() > 25 ? value.substring(0, 25) + " ......." : value, db);
         try {
             switch (db) {
@@ -115,7 +113,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     }
 
     @Override
-    public boolean delete(String key, DbName db) {
+    public synchronized boolean delete(String key, DbName db) {
         log.info("----DELETE----      KEY: {}     DB: {}", key, db);
         try {
             switch (db) {

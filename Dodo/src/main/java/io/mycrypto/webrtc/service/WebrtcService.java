@@ -1,6 +1,9 @@
 package io.mycrypto.webrtc.service;
 
 import io.mycrypto.core.config.DodoCommonConfig;
+import io.mycrypto.core.repository.KeyValueRepository;
+import io.mycrypto.core.service.ResponseService;
+import io.mycrypto.webrtc.config.WebSocketClientConfig;
 import io.mycrypto.webrtc.controller.DodoClientController;
 import io.mycrypto.webrtc.dto.MessageType;
 import io.mycrypto.webrtc.dto.StompMessage;
@@ -15,6 +18,8 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.concurrent.TimeUnit;
 
+import static io.mycrypto.core.repository.DbName.*;
+
 @Slf4j
 @Service
 public class WebrtcService {
@@ -23,15 +28,28 @@ public class WebrtcService {
     private DodoCommonConfig config;
 
     @Autowired
+    private WebSocketClientConfig clientConfig;
+
+    @Autowired
     private IceGathering ice;
+
+    @Autowired
+    private KeyValueRepository<String, String> rocksDB;
 
     @EventListener(ApplicationReadyEvent.class)
     public void startPeerStateInstantiation() {
-        establishConnectionWithSignallingServer();
+        DodoClientController client = establishConnectionWithSignallingServer();
+
+        if (client == null) {
+            log.info("Unable to connect to Signalling Server; WebRTC will be disabled");
+            return;
+        }
+
+        requestPeersFromServer(client, 1);
     }
 
-    private void establishConnectionWithSignallingServer() {
-        DodoClientController client = new DodoClientController();
+    private DodoClientController establishConnectionWithSignallingServer() {
+        DodoClientController client = clientConfig.clientForSS();
 
         int count = 0;
         while (count <= 2 && !pingHost(config.getSignallingServerFQDN(), 8080, 1000)) {
@@ -45,9 +63,11 @@ public class WebrtcService {
 
         if (count == 3) {
             log.error("Unable to connect to Server after 3 attempts in 30 seconds");
-            return;
+            client.shutDown();
+            return null;
         }
 
+        client.setDodoAddress(getDefaultWalletAddress());
         client.connect(
                 String.format(
                         "ws://%s:8080/ss",
@@ -56,15 +76,7 @@ public class WebrtcService {
         );
         client.subscribe("/peer/queue/reply");
 
-        StompMessage message = new StompMessage();
-        message.setFrom(config.getAdminAddress());
-        message.setType(MessageType.PEERS);
-
-        client.sendMessage("/signal/message", message);
-
-        // gather ICE candidates
-        ice.getIceCandidate();
-
+        return client;
     }
 
     private boolean pingHost(String host, int port, int timeout) {
@@ -75,5 +87,23 @@ public class WebrtcService {
             log.error("Unable to reach {} at port {}, trying again in 10 seconds", host, port);
             return false; // Either timeout or unreachable or failed DNS lookup.
         }
+    }
+
+    public static void requestPeersFromServer(DodoClientController client, int attempt) {
+        log.info("Requesting peers from {}; sending <PEERS> packet; attempt {}", client.getServerURL(), attempt);
+        StompMessage message = new StompMessage();
+        message.setFrom(client.getDodoAddress());
+        message.setType(MessageType.PEERS);
+
+        client.sendMessage("/signal/message", message);
+    }
+
+    private String getDefaultWalletAddress() {
+        return ResponseService.castToWalletInfoDto(
+                rocksDB.find(
+                        config.getDefaultWalletName(),
+                        WALLETS
+                )
+        ).getAddress();
     }
 }

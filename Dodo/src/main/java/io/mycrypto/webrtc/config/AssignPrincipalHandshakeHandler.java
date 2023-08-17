@@ -17,7 +17,10 @@ public class AssignPrincipalHandshakeHandler extends DefaultHandshakeHandler {
     protected Principal determineUser(@NonNull final ServerHttpRequest request, @NonNull final WebSocketHandler wsHandler, Map<String, Object> attributes) {
         final String name;
         if (!attributes.containsKey(ATTR_PRINCIPAL)) {
-            name = String.valueOf(UUID.randomUUID());
+            if (request.getHeaders().containsKey("dodo-address"))
+                name = Objects.requireNonNull(request.getHeaders().get("dodo-address")).get(0);
+            else
+                name = String.valueOf(UUID.randomUUID());
             attributes.put(ATTR_PRINCIPAL, name);
         } else {
             name = (String) attributes.get(ATTR_PRINCIPAL);

@@ -7,6 +7,7 @@ import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 
 import java.security.Principal;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 public class AssignPrincipalHandshakeHandler extends DefaultHandshakeHandler {
@@ -15,9 +16,11 @@ public class AssignPrincipalHandshakeHandler extends DefaultHandshakeHandler {
     @Override
     protected Principal determineUser(@NonNull final ServerHttpRequest request, @NonNull final WebSocketHandler wsHandler, Map<String, Object> attributes) {
         final String name;
-        System.out.println("---" + request.getPrincipal() + "\n" + request.getHeaders() + "\n" + attributes);
         if (!attributes.containsKey(ATTR_PRINCIPAL)) {
-            name = String.valueOf(UUID.randomUUID());
+            if (request.getHeaders().containsKey("dodo-address"))
+                name = Objects.requireNonNull(request.getHeaders().get("dodo-address")).get(0);
+            else
+                name = String.valueOf(UUID.randomUUID());
             attributes.put(ATTR_PRINCIPAL, name);
         } else {
             name = (String) attributes.get(ATTR_PRINCIPAL);

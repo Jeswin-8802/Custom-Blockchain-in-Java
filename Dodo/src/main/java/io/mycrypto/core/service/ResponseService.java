@@ -8,11 +8,12 @@ import io.mycrypto.core.entity.Block;
 import io.mycrypto.core.entity.Transaction;
 import io.mycrypto.core.exception.MyCustomException;
 import io.mycrypto.core.repository.DbName;
-import io.mycrypto.core.service.block.BlockService;
 import io.mycrypto.core.repository.KeyValueRepository;
+import io.mycrypto.core.service.block.BlockService;
 import io.mycrypto.core.service.transaction.TransactionService;
 import io.mycrypto.core.service.wallet.WalletService;
 import io.mycrypto.core.util.Utility;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SystemUtils;
 import org.apache.logging.log4j.util.Strings;
@@ -20,8 +21,6 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
@@ -191,7 +190,7 @@ public class ResponseService {
             return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Key name must contain only letters, digits and dash(-) while the first and last character must be a letter or digit"));
         }
         if (Utility.keyFileExistsInDirectory(request.getKeyName())) {
-            log.error("Key file with given name already exists; To overwrite the key remove the keys from /RESOURCES/KEYS");
+            log.error("Key file with given name already exists; To overwrite the wallet address remove the keys from /RESOURCES/KEYS");
             return ResponseEntity.badRequest().body(Utility.constructJsonResponse("msg", "Key file with given name already exists; To overwrite the key remove the keys from /RESOURCES/KEYS"));
         }
 
@@ -215,7 +214,7 @@ public class ResponseService {
                 log.info("Currency added as reward => {}", new ObjectMapper().writeValueAsString(tnx));
             }
             return constructWalletResponseFromInfo(new ObjectMapper().writeValueAsString(value));
-        } catch (JsonProcessingException exception) {
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
             log.error("Error while trying to parse WalletInfoDto to JSON...", exception);
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Encountered an error while parsing..."));
         } catch (MyCustomException exception) {
@@ -228,10 +227,10 @@ public class ResponseService {
      * Creates a default wallet that will be used to
      * refer to this peer externally
      */
-    @EventListener(ApplicationReadyEvent.class)
+    @PostConstruct
     private void createDefaultWallet() {
-        String walletName = "My-Wallet";
-        String keyName = "My-Key";
+        String walletName = config.getDefaultWalletName();
+        String keyName = config.getDefaultKeyName();
 
         log.info("Creating default Wallet -> {}", walletName);
 
@@ -243,19 +242,30 @@ public class ResponseService {
     }
 
     /**
-     * @param data This parameter stores the WalletInfo as a JSON string which will then be converted to a Response Object
-     * @return Response Object
+     * The String data is mapped to an object of class WalletInfoDto
+     *
+     * @param data Wallet information retrieved from DB
+     * @return WalletInfoDto
      */
-    private ResponseEntity<Object> constructWalletResponseFromInfo(String data) {
+    public static WalletInfoDto castToWalletInfoDto(String data) {
         WalletInfoDto info = null;
         try {
             info = new ObjectMapper().readValue(data, WalletInfoDto.class);
             log.info("Wallet Contents: \n{}", new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(info));
-        } catch (JsonProcessingException exception) {
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
             log.error("Error while parsing json to WalletInfoDto...", exception);
         }
+        return info;
+    }
+
+    /**
+     * @param data This parameter stores the WalletInfo as a JSON string which will then be converted to a Response Object
+     * @return Response Object
+     */
+    private ResponseEntity<Object> constructWalletResponseFromInfo(String data) {
+        WalletInfoDto info = castToWalletInfoDto(data);
+
         WalletResponseDto response = new WalletResponseDto();
-        assert info != null;
         response.setPublicKey(info.getPublicKey());
         response.setPrivateKey(info.getPrivateKey());
         response.setHash160(info.getHash160());
@@ -271,7 +281,7 @@ public class ResponseService {
             JSONObject transactionsJSON;
             try {
                 transactionsJSON = new ObjectMapper().readValue(transactions, JSONObject.class);
-            } catch (JsonProcessingException exception) {
+            } catch (JsonProcessingException | IllegalArgumentException exception) {
                 log.error("En error occurred when paring JSON", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Error while Parsing UTXO data from Accounts DB to JSON..."));
             }
@@ -280,7 +290,7 @@ public class ResponseService {
             List<UTXODto> UTXOs;
             try {
                 UTXOs = transactionService.retrieveAllUTXOs(transactionsJSON, TRANSACTIONS);
-            } catch (JsonProcessingException exception) {
+            } catch (JsonProcessingException | IllegalArgumentException exception) {
                 log.error("Error while parsing data in Transaction DB to an object of class <Transaction>", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't parse transaction data(String) to Object<Transaction>..."));
             } catch (MyCustomException exception) {
@@ -296,7 +306,7 @@ public class ResponseService {
                         .total(sum)
                         .build()
                 ));
-            } catch (JsonProcessingException exception) {
+            } catch (JsonProcessingException | IllegalArgumentException exception) {
                 log.error("Error while parsing WalletUTXOsResponseDto to JSON...", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't parse WalletUTXOsResponseDto to JSON..."));
             }
@@ -387,7 +397,7 @@ public class ResponseService {
 
             try {
                 UTXOs = transactionService.retrieveAllUTXOs(new ObjectMapper().readValue(transactions, JSONObject.class), dbName);
-            } catch (JsonProcessingException exception) {
+            } catch (JsonProcessingException | IllegalArgumentException exception) {
                 log.error("Error while casting UTXO info to JSONObject from AccountsDB...", exception);
                 return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("err", "Error while casting UTXO info to JSONObject from AccountsDB..."));
             } catch (MyCustomException exception) {
@@ -401,7 +411,7 @@ public class ResponseService {
                     .total(sum)
                     .build();
             log.info("UTXOs for address {} : \n{}", address, new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(response));
-        } catch (JsonProcessingException exception) {
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
             log.error("Error while parsing WalletUTXOsResponseDto to JSON...", exception);
             return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", "Couldn't parse WalletUTXOsResponseDto to JSON..."));
         }
@@ -436,7 +446,7 @@ public class ResponseService {
                     return ResponseEntity.internalServerError().body(Utility.constructJsonResponse("msg", String.format("Wallet \"%s\" not found in WalletsDB...", walletName)));
                 walletInfo = new ObjectMapper().readValue(info, WalletInfoDto.class);
             }
-        } catch (JsonProcessingException exception) {
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
             log.error("Error occurred while parsing Wallet content from String to DTO object", exception);
             return ResponseEntity.internalServerError().build();
         }

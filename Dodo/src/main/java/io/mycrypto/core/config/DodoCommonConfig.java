@@ -17,6 +17,12 @@ public class DodoCommonConfig {
     @Value("${SS_SERVER_FQDN}")
     private String signallingServerFQDN;
 
+    @Value("${DEFAULT_WALLET_NAME}")
+    private String defaultWalletName;
+
+    @Value("${DEFAULT_KEY_NAME}")
+    private String defaultKeyName;
+
     @Value("${BLOCK_REWARD}")
     private BigDecimal blockReward;
 

@@ -28,6 +28,6 @@ public class DodoServerController {
     public void processMessageFromPeer(@Payload StompMessage message,
                                        Principal principal,
                                        @Header("simpSessionId") String sessionId) throws Exception {
-        msgProcessor.processMessageFromPeerAsServer(sessionId, principal.getName(), message);
+        msgProcessor.processMessageAsServer(sessionId, principal.getName(), message);
     }
 }

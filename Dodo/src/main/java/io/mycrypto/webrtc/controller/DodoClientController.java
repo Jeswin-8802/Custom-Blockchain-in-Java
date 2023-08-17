@@ -3,6 +3,7 @@ package io.mycrypto.webrtc.controller;
 import io.mycrypto.webrtc.dto.StompMessage;
 import io.mycrypto.webrtc.service.MessageProcessor;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,38 +27,44 @@ import java.util.Map;
 public class DodoClientController implements StompSessionHandler {
 
     @Autowired
-    private MessageProcessor messageProcessor;
+    private MessageProcessor msgProcessor;
 
-    private StompSession stompSession = null;
+    private StompSession stompSession;
 
-    /**
-     *  URL of server being connected to
-     */
-    private String serverURL = null;
+    @Getter
+    private String sessionId;
+
+    @Getter
+    private String serverURL;
+
+    @Getter
+    @Setter
+    private String dodoAddress;
 
     /**
      * Map of subscriptions.
      */
     @Getter
-    private Map<String, StompSession.Subscription> subscriptions = new HashMap<>();
+    private final Map<String, StompSession.Subscription> subscriptions = new HashMap<>();
 
     /* --- StompSessionHandler methods --- */
 
     @Override
     public void afterConnected(@NotNull StompSession session, @NotNull StompHeaders connectedHeaders) {
-        log.info("Connection to STOMP server established.\n" +
-                "Session: {}\n" +
-                "Headers: {}", session, connectedHeaders);
+        log.info("""
+                Connection to STOMP server established.
+                Session: {}
+                Headers: {}""", session.getSessionId(), connectedHeaders);
     }
 
     @Override
     public void handleException(@NotNull StompSession session, StompCommand command, @NotNull StompHeaders headers, @NotNull byte[] payload, @NotNull Throwable exception) {
         log.error("""
-                Got an exception while handling a frame.
-                Command: {}
-                Headers: {}
-                Payload: {}
-                """,
+                        Got an exception while handling a frame.
+                        Command: {}
+                        Headers: {}
+                        Payload: {}
+                        """,
                 command, headers, payload, exception);
     }
 
@@ -70,6 +77,7 @@ public class DodoClientController implements StompSessionHandler {
         }
     }
 
+    @NotNull
     @Override
     public Type getPayloadType(@NotNull StompHeaders headers) {
         return StompMessage.class;
@@ -77,9 +85,8 @@ public class DodoClientController implements StompSessionHandler {
 
     @Override
     public void handleFrame(@NotNull StompHeaders headers, Object payload) {
-        log.info("Got a new message {}", payload);
         try {
-            messageProcessor.processMessageAsClient(stompSession.getSessionId() ,headers, (StompMessage) payload);
+            msgProcessor.processMessageAsClient(this, stompSession.getSessionId(), headers, (StompMessage) payload);
         } catch (ClassCastException exception) {
             log.error("Error occurred when casting payload to Class <StompMessage>", exception);
         }
@@ -94,6 +101,7 @@ public class DodoClientController implements StompSessionHandler {
         stompClient.setMessageConverter(new MappingJackson2MessageConverter());
 
         WebSocketHttpHeaders webSocketHeaders = new WebSocketHttpHeaders();
+        webSocketHeaders.add("dodo-address", this.dodoAddress);
         StompHeaders stompHeaders = new StompHeaders();
 
         try {
@@ -104,12 +112,14 @@ public class DodoClientController implements StompSessionHandler {
                             stompHeaders,
                             this)
                     .get();
+            this.sessionId = stompSession.getSessionId();
         } catch (Exception exception) {
             log.error("Connection failed.", exception); // TODO: Do some failover and implement retry patterns.
         }
     }
 
     public void sendMessage(String destination, StompMessage message) {
+        log.info("sending payload: \n{} to {} at {}", message.toString(), this.serverURL, destination);
         if (stompSession != null)
             stompSession.send(destination, message);
     }
@@ -120,13 +130,13 @@ public class DodoClientController implements StompSessionHandler {
 
     public void subscribe(String uri) {
         log.info("Subscribing to: \"{}\"", uri);
-        stompSession.subscribe(uri, this);
+        subscriptions.put(uri, stompSession.subscribe(uri, this));
     }
 
     /**
      * Unsubscribe and close connection before destroying this instance.
      */
-    void shutDown() {
+    public void shutDown() {
         for (String key : subscriptions.keySet())
             subscriptions.get(key).unsubscribe();
 

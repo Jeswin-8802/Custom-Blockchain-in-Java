@@ -3,6 +3,7 @@ package io.mycrypto.core.util;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mycrypto.core.dto.WalletInfoDto;
+import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SystemUtils;
 import org.apache.logging.log4j.util.Strings;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 
 
 @Slf4j
+@UtilityClass
 public class Utility {
     private static final String PUBLIC_KEY_NAME = "myPublicKey";
     private static final String PRIVATE_KEY_NAME = "myPrivateKey";
@@ -107,7 +109,6 @@ public class Utility {
         if (base.isDirectory())
             log.info("The directory \"KEYS\" found... \nAdding keys to folder");
         else {
-            log.info("{}", LOCATION_TO_STORE_KEY);
             if (base.mkdir())
                 log.info("directory \"KEYS\" created... \nAdding keys to folder");
             else {
