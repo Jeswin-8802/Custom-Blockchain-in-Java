@@ -17,6 +17,7 @@ services:
       args:
         JAR_PATH: Dodo/target/Dodo.jar
         PROPERTIES_PATH: Dodo/src/main/resources
+        DELAY: 1
     container_name: dodo-user-1
     networks:
       - peer-1-network
@@ -35,6 +36,7 @@ services:
       args:
         JAR_PATH: Dodo/target/Dodo.jar
         PROPERTIES_PATH: Dodo/src/main/resources
+        DELAY: 5
     container_name: dodo-user-2
     networks:
       - peer-2-network
@@ -53,6 +55,7 @@ services:
       args:
         JAR_PATH: Dodo-Signaling-Server/target/Dodo-Signaling-Server.jar
         PROPERTIES_PATH: Dodo-Signaling-Server/src/main/resources
+        DELAY: 0
     container_name: dodo-ss
     networks:
       - ss-network

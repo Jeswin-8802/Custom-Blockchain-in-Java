@@ -13,8 +13,10 @@ public enum MessageType {
     Not the other way round unless, the other peer sends an INITIATE first
     */
     DENIED, // after INITIATE, if the Signaling Server finds that the other Peer initiated first
+    ONLINE, // // if the other Peer is Online
     OFFLINE, // if the other Peer is Offline
-    ICE,    // Sends the ICE candidate to peer through the Signalling Server
+    ICE_REQUEST,    // requests ICE candidates from the other peer
+    ICE_OFFER,    // Sends the ICE candidate to peer through the Signalling Server
 
     /* P2P */
 

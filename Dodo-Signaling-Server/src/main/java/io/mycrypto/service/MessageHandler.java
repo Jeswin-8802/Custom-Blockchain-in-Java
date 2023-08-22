@@ -23,8 +23,6 @@ public class MessageHandler {
     @Autowired
     private KeyValueRepository<String, String> rocksDB;
 
-    private final String destionationUri = "/queue/reply";
-
     private final String serverIdentity = "dodo-ss";
 
     public void processMessageFromPeer(String sessionId, String userName, StompMessage payload) {
@@ -36,18 +34,20 @@ public class MessageHandler {
                         """,
                 sessionId, userName, payload.toString());
 
-        recordAndSetPeerStatus(userName, PeerStatus.ONLINE);
+        if (rocksDB.find(userName, DbName.PEER_STATUS) == null)
+            recordAndSetPeerStatus(userName, PeerStatus.ONLINE.toString());
 
         switch (payload.getType()) {
             case PEERS -> getPeersAndSendToClient(userName);
             case INITIATE -> handleInitiate(userName, payload);
+            case ICE_REQUEST, ICE_OFFER -> handleIce(payload);
         }
     }
 
-    private void recordAndSetPeerStatus(String dodoAddress, PeerStatus status) {
+    private void recordAndSetPeerStatus(String dodoAddress, String status) {
         rocksDB.save(
                 dodoAddress,
-                status.toString(),
+                status,
                 DbName.PEER_STATUS
         );
     }
@@ -77,12 +77,9 @@ public class MessageHandler {
             log.error("Encountered an error when converting to json", exception);
         }
 
-        log.info("Sending message \n{} to peer {}", message, peer);
-
         assert message != null;
-        this.simpMessagingTemplate.convertAndSendToUser(
+        sendMessage(
                 peer,
-                destionationUri,
                 message
         );
     }
@@ -98,7 +95,123 @@ public class MessageHandler {
             log.error("An error occurred while casting payload to <InitiateDto.class>", exception);
         }
 
+        String peerStatus = rocksDB.find(
+                peer,
+                DbName.PEER_STATUS
+        );
+        log.info("Status of peer {} : \n{}", peer, peerStatus);
+
         assert initiate != null;
-        log.info(" ------------------- {} : {}", initiate.getClient(), initiate.getInitiateTo());
+        String initiateToStatus = rocksDB.find(
+                initiate.getInitiateTo(),
+                DbName.PEER_STATUS
+        );
+        log.info("Status of peer to initiate connection to {} : \n{}", initiate.getInitiateTo(), initiateToStatus);
+
+        if (initiateToStatus.equals(PeerStatus.OFFLINE.toString())) {
+            log.info("The peer to initiate connection to is OFFLINE.");
+            sendMessage(
+                    peer,
+                    new StompMessage(
+                            serverIdentity,
+                            MessageType.OFFLINE,
+                            payload.getMessage()
+                    )
+            );
+        } else if ( // if the peer in session has a status of either ONLINE or OFFLINE
+                List.of(
+                        PeerStatus.ONLINE.toString(),
+                        PeerStatus.OFFLINE.toString()
+                ).contains(
+                        peerStatus
+                )
+        ) {
+            try {
+                PeersDto peersDto;
+                if (    // if the peer to initiate connection to does not have a status of either ONLINE or OFFLINE
+                        !List.of(
+                                PeerStatus.ONLINE.toString(),
+                                PeerStatus.OFFLINE.toString()
+                        ).contains(
+                                initiateToStatus
+                        )
+                ) {
+                    peersDto = new ObjectMapper()
+                            .readValue(
+                                    rocksDB.find(
+                                            initiate.getInitiateTo(),
+                                            DbName.PEER_STATUS
+                                    ),
+                                    PeersDto.class
+                            );
+                    peersDto.getDodoAddresses().add(peer);
+                } else {
+                    peersDto = new PeersDto(List.of(peer));
+                }
+
+                // Setting Value to peer address instead of Status to track which peer initiated connection first
+                recordAndSetPeerStatus(
+                        initiate.getInitiateTo(),
+                        new ObjectMapper()
+                                .writerWithDefaultPrettyPrinter()
+                                .writeValueAsString(peersDto)
+                );
+            } catch (JsonProcessingException exception) {
+                log.error("Encountered an error when converting to json and back", exception);
+            }
+
+            log.info("Peer {} is ONLINE and {} can INITIATE connection to it.", initiate.getInitiateTo(), peer);
+            sendMessage(
+                    peer,
+                    new StompMessage(
+                            serverIdentity,
+                            MessageType.ONLINE,
+                            payload.getMessage()
+                    )
+            );
+        } else {
+            log.info("Peer {} had already initiated connection with {} therefore the request has been DENIED.", initiate.getInitiateTo(), peer);
+            sendMessage(
+                    peer,
+                    new StompMessage(
+                            serverIdentity,
+                            MessageType.DENIED,
+                            payload.getMessage()
+                    )
+            );
+        }
+    }
+
+    private void handleIce(StompMessage payload) {
+        IceRequestDto iceRequest = null;
+        IceOfferDto iceOffer = null;
+        try {
+            if (payload.getType().equals(MessageType.ICE_REQUEST))
+                iceRequest = new ObjectMapper().readValue(
+                        payload.getMessage(),
+                        IceRequestDto.class
+                );
+            else
+                iceOffer = new ObjectMapper().readValue(
+                        payload.getMessage(),
+                        IceOfferDto.class
+                );
+        } catch (JsonProcessingException exception) {
+            log.error("An error occurred while casting payload to <IceDto.class>", exception);
+        }
+        sendMessage(
+                payload.getType().equals(MessageType.ICE_REQUEST) ? iceRequest.getTo() : iceOffer.getTo(),
+                payload
+        );
+    }
+
+    private void sendMessage(String peer, StompMessage message) {
+        log.info("Sending message \n{} to peer {}", message, peer);
+        String destinationUri = "/queue/reply";
+        this.simpMessagingTemplate.convertAndSendToUser(
+                peer,
+                destinationUri,
+                message
+        );
     }
 }

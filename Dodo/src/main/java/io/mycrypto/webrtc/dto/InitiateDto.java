@@ -6,9 +6,6 @@ import lombok.Data;
 @Data
 public class InitiateDto {
 
-    @JsonProperty("from")
-    private String client;
-
     @JsonProperty("to")
     private String initiateTo;
 
@@ -16,8 +13,7 @@ public class InitiateDto {
         // empty constructor needed to deserialize
     }
 
-    public InitiateDto(String client, String initiateTo) {
-        this.client = client;
+    public InitiateDto(String initiateTo) {
         this.initiateTo = initiateTo;
     }
 }

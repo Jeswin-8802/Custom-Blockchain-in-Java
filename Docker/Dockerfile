@@ -6,6 +6,9 @@ WORKDIR /app
 
 ARG JAR_PATH
 ARG PROPERTIES_PATH
+ARG DELAY
+
+ENV delay ${DELAY}
 
 RUN apk upgrade --no-cache && \
     apk add --no-cache bash tree libstdc++
@@ -13,4 +16,4 @@ RUN apk upgrade --no-cache && \
 COPY ${JAR_PATH} /app
 COPY ${PROPERTIES_PATH}/*.properties /app
 
-CMD ["sh", "-c", "java -jar *.jar"]
+CMD ["sh", "-c", "sleep ${delay} && java -jar *.jar"]
