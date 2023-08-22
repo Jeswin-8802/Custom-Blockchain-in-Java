@@ -69,7 +69,7 @@ public class IceGathering {
 
             IceCandidate iceCandidate = new IceCandidate();
             iceCandidate.setServer(server);
-            iceCandidate.setAddress(ma.getAddress());
+            iceCandidate.setAddress(String.valueOf(ma.getAddress().getInetAddress()));
             iceCandidate.setPort(ma.getPort());
 
             return iceCandidate;

@@ -20,6 +20,14 @@ public class StompMessage {
         date = new Date().getTime();
     }
 
+    public StompMessage(String from, MessageType type, String message) {
+        this.id = String.valueOf(UUID.randomUUID());
+        this.from = from;
+        this.type = type;
+        this.message = message;
+        this.date = new Date().getTime();
+    }
+
     @Override
     public String toString() {
         return String.format("""

@@ -7,6 +7,7 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Repository;
 
 import java.io.File;
@@ -77,8 +78,9 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     }
 
 
+    @Async
     @Override
-    public synchronized void save(String key, String value, DbName db) {
+    public void save(String key, String value, DbName db) {
         log.info("----SAVE----      KEY: {}     VALUE: {}     DB: {}", key, value.length() > 25 ? value.substring(0, 25) + " ......." : value, db);
         try {
             switch (db) {
@@ -113,7 +115,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     }
 
     @Override
-    public synchronized boolean delete(String key, DbName db) {
+    public boolean delete(String key, DbName db) {
         log.info("----DELETE----      KEY: {}     DB: {}", key, db);
         try {
             switch (db) {
