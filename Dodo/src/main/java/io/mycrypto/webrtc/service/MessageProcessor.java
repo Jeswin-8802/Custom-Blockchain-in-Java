@@ -2,18 +2,22 @@ package io.mycrypto.webrtc.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.mycrypto.core.repository.DbName;
+import io.mycrypto.core.repository.KeyValueRepository;
 import io.mycrypto.webrtc.controller.DodoClientController;
 import io.mycrypto.webrtc.dto.*;
 import lombok.extern.slf4j.Slf4j;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static io.mycrypto.webrtc.dto.MessageType.ICE_OFFER;
 import static io.mycrypto.webrtc.dto.MessageType.ICE_REQUEST;
@@ -28,7 +32,12 @@ public class MessageProcessor {
     @Autowired
     private IceGathering ice;
 
+    @Autowired
+    private KeyValueRepository<String, String> rocksDb;
+
     private final Map<MessageType, Integer> messageCountTracker = new HashMap<>();
+    
+    private final String signalingServerDestinationUri = "/signal/message";
 
     public void processMessageAsServer(String sessionId, String userName, StompMessage payload) {
         log.info("""
@@ -60,6 +69,7 @@ public class MessageProcessor {
             case PEERS -> processPeers(client, payload);
             case ONLINE, OFFLINE, DENIED -> handleInitiate(client, payload);
             case ICE_REQUEST, ICE_OFFER -> handleIce(client, payload);
+            case FINISH -> handleFinish(client, payload);
         }
     }
 
@@ -81,7 +91,13 @@ public class MessageProcessor {
         } catch (JsonProcessingException exception) {
             log.error("An error occurred while casting payload to <PeersDto.class>", exception);
         }
+        
         assert peers != null;
+        rocksDb.save(
+                DbName.PEERS.toString(),
+                peers.getDodoAddresses().toString().replaceAll("[\\[\\]\\s]", ""),
+                DbName.WEBRTC
+        );
 
         if (peers.getDodoAddresses().isEmpty()) {
             if (messageCountTracker.get(MessageType.PEERS) == 3) {
@@ -115,7 +131,7 @@ public class MessageProcessor {
             log.error("Encountered an error when converting to json", exception);
         }
 
-        client.sendMessage("/signal/message", message);
+        client.sendMessage(signalingServerDestinationUri, message);
     }
 
     private void handleInitiate(DodoClientController client, StompMessage payload) {
@@ -152,7 +168,7 @@ public class MessageProcessor {
                 }
 
                 client.sendMessage(
-                        "/signal/message",
+                        signalingServerDestinationUri,
                         new StompMessage(
                                 client.getDodoAddress(),
                                 MessageType.INITIATE,
@@ -165,7 +181,7 @@ public class MessageProcessor {
                 try {
                     assert initiateDto != null;
                     client.sendMessage(
-                            "/signal/message",
+                            signalingServerDestinationUri,
                             new StompMessage(
                                     client.getDodoAddress(),
                                     ICE_REQUEST,
@@ -193,7 +209,7 @@ public class MessageProcessor {
             case ICE_REQUEST -> {
                 try {
                     client.sendMessage(
-                            "/signal/message",
+                            signalingServerDestinationUri,
                             new StompMessage(
                                     client.getDodoAddress(),
                                     ICE_OFFER,
@@ -201,7 +217,8 @@ public class MessageProcessor {
                                             .writerWithDefaultPrettyPrinter()
                                             .writeValueAsString(
                                                     new IceOfferDto(
-                                                            payload.getFrom(),
+                                                            client.getDodoAddress(),
+                                                            payload.getFrom(),  // this condition is arrived at when the ICE_REQUEST payload follows : peer1(remote peer) -> signaling-server -> peer2(current-peer); Here peer2 is processing the request
                                                             ice.getIceCandidate()
                                                     )
                                             )
@@ -222,9 +239,77 @@ public class MessageProcessor {
                     log.error("An error occurred while casting payload to <IceOfferDto.class>", exception);
                 }
 
+                String resultFromDb = rocksDb.find(
+                        DbName.ICE.toString(),
+                        DbName.WEBRTC
+                );
+
+                JSONObject saveToDb = null;
+                if (resultFromDb == null) {
+                    saveToDb = new JSONObject();
+                } else {
+                    try {
+                        saveToDb = (JSONObject) new JSONParser().parse(resultFromDb);
+                    } catch (ParseException exception) {
+                        log.error("An exception occurred when parsing a string to JSON object", exception);
+                    }
+                }
+
                 assert iceOffer != null;
+                assert saveToDb != null;
+                saveToDb.put(
+                        iceOffer.getFrom(),
+                        iceOffer.getIce().toJsonObject()
+                );
+
+                rocksDb.save(
+                        DbName.ICE.toString(),
+                        saveToDb.toJSONString(),
+                        DbName.WEBRTC
+                );
+                
+                /* check for if this peer can close session with the signalling server 
+                by checking if there are any peers left to provide their ice candidates */
+                Set<String> remotePeers = Arrays.stream(rocksDb.find(
+                        DbName.PEERS.toString(),
+                        DbName.WEBRTC
+                ).split(",")).collect(Collectors.toSet());
+                
+                if (remotePeers.size() == 1 && remotePeers.contains(iceOffer.getFrom())) {
+                    client.sendMessage(
+                            signalingServerDestinationUri,
+                            new StompMessage(
+                                    client.getDodoAddress(),
+                                    MessageType.FINISH,
+                                    String.format(
+                                            """
+                                            {
+                                                "to": "%s"
+                                            }
+                                            """,
+                                            iceOffer.getFrom()
+                                    )
+                            )
+                    );
+                    rocksDb.save(
+                            DbName.PEERS.toString(),
+                            "",
+                            DbName.WEBRTC
+                    );
+                } else {
+                    remotePeers.remove(iceOffer.getFrom());
+                    rocksDb.save(
+                            DbName.PEERS.toString(),
+                            remotePeers.toString().replaceAll("[\\[\\]\\s]", ""),
+                            DbName.WEBRTC
+                    );
+                }
             }
         }
+    }
+
+    private void handleFinish(DodoClientController client, StompMessage payload) {
+
     }
 
     public void sendMessageToPeer(String sendTo, String message) {

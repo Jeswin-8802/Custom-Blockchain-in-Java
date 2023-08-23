@@ -11,6 +11,7 @@ import java.util.UUID;
 public class StompMessage {
     private String id;
     private String from;
+    private String to;
     private MessageType type;
     private String message;
     private long date;

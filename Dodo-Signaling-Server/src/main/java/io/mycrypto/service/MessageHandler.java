@@ -6,12 +6,16 @@ import io.mycrypto.dto.*;
 import io.mycrypto.repository.DbName;
 import io.mycrypto.repository.KeyValueRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -40,7 +44,8 @@ public class MessageHandler {
         switch (payload.getType()) {
             case PEERS -> getPeersAndSendToClient(userName);
             case INITIATE -> handleInitiate(userName, payload);
-            case ICE_REQUEST, ICE_OFFER -> handleIce(payload);
+            case ICE_REQUEST, ICE_OFFER -> handleIce(userName, payload);
+            case FINISH -> handleFinish(payload);
         }
     }
 
@@ -182,7 +187,7 @@ public class MessageHandler {
         }
     }
 
-    private void handleIce(StompMessage payload) {
+    private void handleIce(String username, StompMessage payload) {
         IceRequestDto iceRequest = null;
         IceOfferDto iceOffer = null;
         try {
@@ -191,16 +196,39 @@ public class MessageHandler {
                         payload.getMessage(),
                         IceRequestDto.class
                 );
-            else
+            else {
                 iceOffer = new ObjectMapper().readValue(
                         payload.getMessage(),
                         IceOfferDto.class
                 );
+                rocksDB.save(
+                        username,
+                        payload.getMessage(),
+                        DbName.ICE_CANDIDATES
+                );
+            }
         } catch (JsonProcessingException exception) {
             log.error("An error occurred while casting payload to <IceDto.class>", exception);
         }
         sendMessage(
-                payload.getType().equals(MessageType.ICE_REQUEST) ? iceRequest.getTo() : iceOffer.getTo(),
+                payload.getType().equals(MessageType.ICE_REQUEST) ?
+                        Objects.requireNonNull(iceRequest).getTo() :
+                        Objects.requireNonNull(iceOffer).getTo(),
+                payload
+        );
+    }
+
+    private void handleFinish(StompMessage payload) {
+        JSONObject object = null;
+        try {
+            object = (JSONObject) new JSONParser().parse(payload.getMessage());
+        } catch (ParseException exception) {
+            log.error("An exception occurred when parsing a string to JSON object", exception);
+        }
+
+        assert object != null;
+        sendMessage(
+                (String) object.get("to"),
                 payload
         );
     }

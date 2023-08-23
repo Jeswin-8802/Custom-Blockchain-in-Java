@@ -12,16 +12,17 @@ public enum MessageType {
     and the peer being connected to, the server
     Not the other way round unless, the other peer sends an INITIATE first
     */
-    DENIED, // after INITIATE, if the Signaling Server finds that the other Peer initiated first
-    ONLINE, // // if the other Peer is Online
-    OFFLINE, // if the other Peer is Offline
+    DENIED,     // after INITIATE, if the Signaling Server finds that the other Peer initiated first
+    ONLINE,     // if the other Peer is Online
+    OFFLINE,    // if the other Peer is Offline
     ICE_REQUEST,    // requests ICE candidates from the other peer
-    ICE_OFFER,    // Sends the ICE candidate to peer through the Signalling Server
+    ICE_OFFER,  // Sends the ICE candidate to peer through the Signaling Server
+    FINISH,     // Ends Signaling Session
 
     /* P2P */
 
-    CHECK,  // After establishing connection with peer, sends a CHECK message
-    RECEIVED, // In response to CHECK
+    CHECK,      // After establishing connection with peer, sends a CHECK message
+    RECEIVED,   // In response to CHECK
     BLOCK,
     TRANSACTION,
 

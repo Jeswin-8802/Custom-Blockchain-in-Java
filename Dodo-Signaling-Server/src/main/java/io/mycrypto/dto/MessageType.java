@@ -8,5 +8,6 @@ public enum MessageType {
     OFFLINE, // if the other Peer is Offline
     /* redirects ICE candidate to the next peer */
     ICE_REQUEST,
-    ICE_OFFER
+    ICE_OFFER,
+    FINISH
 }
