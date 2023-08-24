@@ -45,7 +45,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
     }
     // --------------------------------------------------------------
 
-    RocksDB dbBlockchain, dbTransactions, dbTransactionsPool, dbNodes, dbWallets, dbAccounts, dbWebrtc;
+    RocksDB dbBlockchain, dbTransactions, dbTransactionsPool, dbNodes, dbWallets, dbAccounts, dbWebrtc, dbP2P;
     // DB will be stored under: /LOCATION_TO_STORE_DB/DB_NAME
 
     @PostConstruct
@@ -72,6 +72,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
         createDB(options, WALLETS, "Wallet Information");
         createDB(options, ACCOUNTS, "Coins/UTXOs for Wallet");
         createDB(options, WEBRTC, "Store responses from remote servers and peers");
+        createDB(options, P2P, "Store p2p peer ws connection status");
     }
 
     private void createDB(Options options, DbName dbName, String msg) {
@@ -96,6 +97,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
                 case WALLETS -> dbWallets = db;
                 case ACCOUNTS -> dbAccounts = db;
                 case WEBRTC -> dbWebrtc = db;
+                case P2P -> dbP2P = db;
             }
         } catch (IOException | RocksDBException ex) {
             log.error("Error initializing RocksDB for storing {}, check configurations and permissions, exception: {}, message: {}, stackTrace: {}",
@@ -116,6 +118,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
                 case WALLETS -> dbWallets.put(key.getBytes(), value.getBytes());
                 case ACCOUNTS -> dbAccounts.put(key.getBytes(), value.getBytes());
                 case WEBRTC -> dbWebrtc.put(key.getBytes(), value.getBytes());
+                case P2P -> dbP2P.put(key.getBytes(), value.getBytes());
                 default -> log.error("Please enter valid DB name");
             }
         } catch (RocksDBException e) {
@@ -137,6 +140,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
                 case WALLETS -> bytes = dbWallets.get(key.getBytes());
                 case ACCOUNTS -> bytes = dbAccounts.get(key.getBytes());
                 case WEBRTC -> bytes = dbWebrtc.get(key.getBytes());
+                case P2P -> bytes = dbP2P.get(key.getBytes());
                 default -> log.error("Please enter valid DB name");
             }
             if (bytes == null) return null;
@@ -159,6 +163,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
                 case WALLETS -> dbWallets.delete(key.getBytes());
                 case ACCOUNTS -> dbAccounts.delete(key.getBytes());
                 case WEBRTC -> dbWebrtc.delete(key.getBytes());
+                case P2P -> dbP2P.delete(key.getBytes());
                 default -> {
                     log.error("Please enter valid DB name");
                     return false;
@@ -184,6 +189,7 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
             case WALLETS -> itr = dbWallets.newIterator();
             case ACCOUNTS -> itr = dbAccounts.newIterator();
             case WEBRTC -> itr = dbWebrtc.newIterator();
+            case P2P -> itr = dbP2P.newIterator();
             default -> log.error("Please enter valid DB name");
         }
 
@@ -220,6 +226,9 @@ public class RocksDBRepositoryImpl implements KeyValueRepository<String, String>
             }
             case WEBRTC -> {
                 return dbWebrtc.getLatestSequenceNumber();
+            }
+            case P2P -> {
+                return dbP2P.getLatestSequenceNumber();
             }
             default -> log.error("Please enter valid DB name");
         }

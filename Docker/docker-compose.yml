@@ -1,5 +1,5 @@
 # docker compose up --detach
-# docker logs -follow <container>
+# docker logs --follow <container>
 # docker inspect $(docker ps | grep -oP "dodo[a-z0-9\-]+$" | sort) | jq '.[] | { (.Name): [ { "ExposedPorts": (.Config.ExposedPorts | keys), "PortBindings": (.HostConfig.PortBindings | to_entries | map({(.key): .value[0].HostPort}) | add) }, (.NetworkSettings.Networks | to_entries | map({(.key): .value.IPAddress}) | add) ] }'
 
 # docker compose down

@@ -1,5 +1,6 @@
-package io.mycrypto.webrtc.dto;
+package io.mycrypto.webrtc.entity;
 
+import io.mycrypto.webrtc.service.tags.MessageType;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -11,6 +12,7 @@ import java.util.UUID;
 public class StompMessage {
     private String id;
     private String from;
+    private String to;
     private MessageType type;
     private String message;
     private long date;

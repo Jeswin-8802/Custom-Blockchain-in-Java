@@ -1,10 +1,13 @@
 package io.mycrypto.webrtc.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.mycrypto.webrtc.entity.IceCandidate;
 import lombok.Data;
 
 @Data
 public class IceOfferDto {
+    @JsonProperty("from-dodo-address")
+    private String from;
     @JsonProperty("to-dodo-address")
     private String to;
     @JsonProperty("ice-candidate")
@@ -14,7 +17,8 @@ public class IceOfferDto {
         // empty constructor needed to deserialize
     }
 
-    public IceOfferDto(String to, IceCandidate ice) {
+    public IceOfferDto(String from, String to, IceCandidate ice) {
+        this.from = from;
         this.to = to;
         this.ice = ice;
     }

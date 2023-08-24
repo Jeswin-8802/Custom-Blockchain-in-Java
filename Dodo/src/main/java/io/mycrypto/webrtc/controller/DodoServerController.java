@@ -1,6 +1,6 @@
 package io.mycrypto.webrtc.controller;
 
-import io.mycrypto.webrtc.dto.StompMessage;
+import io.mycrypto.webrtc.entity.StompMessage;
 import io.mycrypto.webrtc.service.MessageProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.Header;
