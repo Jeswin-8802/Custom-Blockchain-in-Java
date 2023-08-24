@@ -18,6 +18,18 @@ public enum DbName {
      */
     WEBRTC,              // used to store information received from peer or server
         // KEYS used for Webrtc DB
-        PEERS,
-        ICE
+        PEERS,          // dodo-address-1, dodo-address-2 ... dodo-address-n
+        ICE,            /*
+            {
+                "dodo-address-1": { ICE Candidate }
+            },
+            {
+                "dodo-address-2": { ICE Candidate }
+            },
+            .
+            .
+            .
+        */
+
+    P2P                 // dodo-address => [CONNECTED, DISCONNECTED, OFFLINE]
 }

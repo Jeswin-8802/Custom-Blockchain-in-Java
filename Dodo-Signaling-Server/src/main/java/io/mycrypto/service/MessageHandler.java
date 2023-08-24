@@ -227,6 +227,55 @@ public class MessageHandler {
         }
 
         assert object != null;
+        String peerStatus = rocksDB.find(
+                (String) object.get("to"),
+                DbName.PEER_STATUS
+        );
+
+        PeersDto peersDto = null;
+        if (    // if the peer to initiate connection to does not have a status of either ONLINE or OFFLINE
+                !List.of(
+                        PeerStatus.ONLINE.toString(),
+                        PeerStatus.OFFLINE.toString()
+                ).contains(
+                        peerStatus
+                )
+        ) {
+            try {
+                peersDto = new ObjectMapper()
+                        .readValue(
+                                peerStatus,
+                                PeersDto.class
+                        );
+            } catch (JsonProcessingException exception) {
+                log.error("Encountered an error when converting to json and back", exception);
+            }
+        }
+
+        assert peersDto != null;
+        if (
+                peersDto.getDodoAddresses().size() == 1 &&
+                        peersDto.getDodoAddresses().get(0)
+                                .equals(payload.getFrom())
+        ) {
+            recordAndSetPeerStatus(
+                    (String) object.get("to"),
+                    PeerStatus.ONLINE.toString()
+            );
+        } else {
+            peersDto.getDodoAddresses().remove(payload.getFrom());
+            try {
+                recordAndSetPeerStatus(
+                        (String) object.get("to"),
+                        new ObjectMapper()
+                                .writerWithDefaultPrettyPrinter()
+                                .writeValueAsString(peersDto)
+                );
+            } catch (JsonProcessingException exception) {
+                log.error("Encountered an error when converting to json string", exception);
+            }
+        }
+
         sendMessage(
                 (String) object.get("to"),
                 payload

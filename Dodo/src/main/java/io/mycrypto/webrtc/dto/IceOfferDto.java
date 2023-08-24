@@ -1,6 +1,7 @@
 package io.mycrypto.webrtc.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.mycrypto.webrtc.entity.IceCandidate;
 import lombok.Data;
 
 @Data

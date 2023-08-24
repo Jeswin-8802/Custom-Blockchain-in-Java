@@ -1,4 +1,4 @@
-package io.mycrypto.webrtc.dto;
+package io.mycrypto.webrtc.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import de.javawi.jstun.util.Address;

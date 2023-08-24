@@ -1,4 +1,4 @@
-package io.mycrypto.webrtc.dto;
+package io.mycrypto.webrtc.service.tags;
 
 public enum MessageType {
 

@@ -1,5 +1,6 @@
-package io.mycrypto.webrtc.dto;
+package io.mycrypto.webrtc.entity;
 
+import io.mycrypto.webrtc.service.tags.MessageType;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 

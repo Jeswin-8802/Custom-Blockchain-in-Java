@@ -2,10 +2,17 @@ package io.mycrypto.webrtc.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Strings;
 import io.mycrypto.core.repository.DbName;
 import io.mycrypto.core.repository.KeyValueRepository;
 import io.mycrypto.webrtc.controller.DodoClientController;
-import io.mycrypto.webrtc.dto.*;
+import io.mycrypto.webrtc.dto.IceOfferDto;
+import io.mycrypto.webrtc.dto.IceRequestDto;
+import io.mycrypto.webrtc.dto.InitiateDto;
+import io.mycrypto.webrtc.dto.PeersDto;
+import io.mycrypto.webrtc.entity.StompMessage;
+import io.mycrypto.webrtc.service.tags.MessageType;
+import io.mycrypto.webrtc.service.tags.P2pStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -19,8 +26,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static io.mycrypto.webrtc.dto.MessageType.ICE_OFFER;
-import static io.mycrypto.webrtc.dto.MessageType.ICE_REQUEST;
+import static io.mycrypto.webrtc.service.tags.MessageType.ICE_OFFER;
+import static io.mycrypto.webrtc.service.tags.MessageType.ICE_REQUEST;
 
 @Slf4j
 @Service
@@ -36,7 +43,7 @@ public class MessageProcessor {
     private KeyValueRepository<String, String> rocksDb;
 
     private final Map<MessageType, Integer> messageCountTracker = new HashMap<>();
-    
+
     private final String signalingServerDestinationUri = "/signal/message";
 
     public void processMessageAsServer(String sessionId, String userName, StompMessage payload) {
@@ -55,6 +62,14 @@ public class MessageProcessor {
     }
 
     public void processMessageAsClient(DodoClientController client, String sessionId, StompHeaders headers, StompMessage payload) {
+        if (
+                headers.containsKey("message") &&
+                        headers.get("message").get(0).equals("Session closed.")
+        ) {
+            log.info("Session Closed...");
+            return;
+        }
+
         log.info("""
                         Received message...
                         \n
@@ -91,7 +106,7 @@ public class MessageProcessor {
         } catch (JsonProcessingException exception) {
             log.error("An error occurred while casting payload to <PeersDto.class>", exception);
         }
-        
+
         assert peers != null;
         rocksDb.save(
                 DbName.PEERS.toString(),
@@ -239,6 +254,14 @@ public class MessageProcessor {
                     log.error("An error occurred while casting payload to <IceOfferDto.class>", exception);
                 }
 
+                assert iceOffer != null;
+                // save to P2P DB
+                rocksDb.save(
+                        iceOffer.getFrom(),
+                        P2pStatus.DISCONNECTED.toString(),
+                        DbName.P2P
+                );
+
                 String resultFromDb = rocksDb.find(
                         DbName.ICE.toString(),
                         DbName.WEBRTC
@@ -255,7 +278,6 @@ public class MessageProcessor {
                     }
                 }
 
-                assert iceOffer != null;
                 assert saveToDb != null;
                 saveToDb.put(
                         iceOffer.getFrom(),
@@ -274,7 +296,7 @@ public class MessageProcessor {
                         DbName.PEERS.toString(),
                         DbName.WEBRTC
                 ).split(",")).collect(Collectors.toSet());
-                
+
                 if (remotePeers.size() == 1 && remotePeers.contains(iceOffer.getFrom())) {
                     client.sendMessage(
                             signalingServerDestinationUri,
@@ -283,33 +305,61 @@ public class MessageProcessor {
                                     MessageType.FINISH,
                                     String.format(
                                             """
-                                            {
-                                                "to": "%s"
-                                            }
-                                            """,
+                                                    {
+                                                        "to": "%s"
+                                                    }
+                                                    """,
                                             iceOffer.getFrom()
                                     )
                             )
                     );
-                    rocksDb.save(
-                            DbName.PEERS.toString(),
-                            "",
-                            DbName.WEBRTC
-                    );
-                } else {
-                    remotePeers.remove(iceOffer.getFrom());
-                    rocksDb.save(
-                            DbName.PEERS.toString(),
-                            remotePeers.toString().replaceAll("[\\[\\]\\s]", ""),
-                            DbName.WEBRTC
-                    );
                 }
+
+                closeSessionWithSignallingServer(client, payload);
             }
         }
     }
 
     private void handleFinish(DodoClientController client, StompMessage payload) {
+        log.info("""
+                \n
+                ------------------------------------------------
+                 ICE exchange between PEERS has been completed.
+                   Disconnecting from Dodo Signalling Server.
+                     Attempting to connect to remote PEERS.
+                -------------------------------------------------
+                """);
+        closeSessionWithSignallingServer(client, payload);
+    }
 
+    private void closeSessionWithSignallingServer(DodoClientController client, StompMessage payload) {
+        if (
+                !Strings.isNullOrEmpty(rocksDb.find(
+                        DbName.PEERS.toString(),
+                        DbName.WEBRTC
+                ))
+        ) {
+            List<String> peers =
+                    new ArrayList<>(Arrays.stream(
+                            rocksDb.find(
+                                    DbName.PEERS.toString(),
+                                    DbName.WEBRTC
+                            ).split(",")
+                    ).toList());
+
+            if (peers.size() == 1) {
+                client.shutDown();
+            }
+
+            peers.remove(payload.getFrom());
+            rocksDb.save(
+                    DbName.PEERS.toString(),
+                    peers.isEmpty() ?
+                            "" :
+                            peers.toString().replaceAll("[\\[\\]\\s]", ""),
+                    DbName.WEBRTC
+            );
+        }
     }
 
     public void sendMessageToPeer(String sendTo, String message) {

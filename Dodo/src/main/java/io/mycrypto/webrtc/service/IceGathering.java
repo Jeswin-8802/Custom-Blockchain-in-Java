@@ -6,7 +6,7 @@ import de.javawi.jstun.attribute.MessageAttribute;
 import de.javawi.jstun.attribute.MessageAttributeParsingException;
 import de.javawi.jstun.header.MessageHeader;
 import de.javawi.jstun.util.UtilityException;
-import io.mycrypto.webrtc.dto.IceCandidate;
+import io.mycrypto.webrtc.entity.IceCandidate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

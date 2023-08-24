@@ -1,13 +1,17 @@
 package io.mycrypto.webrtc.service;
 
 import io.mycrypto.core.config.DodoCommonConfig;
+import io.mycrypto.core.repository.DbName;
 import io.mycrypto.core.repository.KeyValueRepository;
 import io.mycrypto.core.service.ResponseService;
 import io.mycrypto.webrtc.config.WebSocketClientConfig;
 import io.mycrypto.webrtc.controller.DodoClientController;
-import io.mycrypto.webrtc.dto.MessageType;
-import io.mycrypto.webrtc.dto.StompMessage;
+import io.mycrypto.webrtc.service.tags.MessageType;
+import io.mycrypto.webrtc.entity.StompMessage;
 import lombok.extern.slf4j.Slf4j;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -16,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static io.mycrypto.core.repository.DbName.*;
@@ -105,5 +110,28 @@ public class WebrtcService {
                         WALLETS
                 )
         ).getAddress();
+    }
+
+    public void establishConnectionWithRemotePeersAsClient(List<String> dodoAddressList) {
+        boolean singular = dodoAddressList.size() == 1;
+        log.info("Creating {} websocket {} to connect to remote {}", dodoAddressList.size(), singular ? "client" : "clients", singular ? "peer" : "peers");
+        List<DodoClientController> remotePeerClients = clientConfig.clientForP2P(dodoAddressList);
+
+        // get ICE Candidate Info from DB
+        JSONObject iceCandidates = null;
+        try {
+            iceCandidates = (JSONObject) new JSONParser()
+                    .parse(
+                            rocksDB.find(
+                                    DbName.ICE.toString(),
+                                    DbName.WEBRTC
+                            )
+                    );
+        } catch (ParseException exception) {
+            log.error("An exception occurred when parsing a string to JSON object", exception);
+        }
+
+        assert iceCandidates != null;
+        log.info("----------- \n{} \n{}", dodoAddressList, iceCandidates.toJSONString());
     }
 }
